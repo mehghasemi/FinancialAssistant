@@ -6,7 +6,7 @@ from typing import Literal
 from fastapi import APIRouter, HTTPException
 
 from ..calendar import format_jalali_date, format_jalali_datetime
-from ..database import connection, write_audit_log
+from ..database import allocate_unique_code, connection, write_audit_log
 from ..schemas import (
     CommitmentGroupUpdate, CommitmentInput, CommitmentUpdate,
     InstallmentUpdate, PaymentInput, PaymentUpdate,
@@ -23,12 +23,13 @@ router = APIRouter(prefix="/api", tags=["commitments"])
 def create_commitment(payload: CommitmentInput):
     due_dates = planned_installments(payload)
     planned_total = payload.installment_amount * payload.installment_count
-    if payload.total_amount and planned_total > payload.total_amount:
-        raise HTTPException(422, "جمع اقساط نمی‌تواند بیشتر از مبلغ کل باشد.")
+    if payload.repayment_amount is not None and payload.repayment_amount != planned_total:
+        raise HTTPException(422, "مبلغ بازپرداخت باید برابر با جمع اقساط باشد.")
     with connection() as db:
+        unique_code = allocate_unique_code(db)
         cursor = db.execute(
-            "INSERT INTO commitments(title, kind, total_amount) VALUES (?, ?, ?)",
-            (payload.title.strip(), payload.kind.strip(), payload.total_amount),
+            "INSERT INTO commitments(title, kind, total_amount, repayment_amount, unique_code) VALUES (?, ?, ?, ?, ?)",
+            (payload.title.strip(), payload.kind.strip(), payload.total_amount, payload.repayment_amount, unique_code),
         )
         commitment_id = cursor.lastrowid
         db.executemany(
@@ -36,15 +37,15 @@ def create_commitment(payload: CommitmentInput):
             ((commitment_id, due.isoformat(), payload.installment_amount) for due in due_dates),
         )
         write_audit_log(db, "create", "commitment", commitment_id, payload.title)
-    return {"id": commitment_id, "installment_count": payload.installment_count}
+    return {"id": commitment_id, "installment_count": payload.installment_count, "unique_code": unique_code}
 
 
 @router.post("/commitments/preview")
 def preview_commitment(payload: CommitmentInput):
     due_dates = planned_installments(payload)
     planned_total = payload.installment_amount * payload.installment_count
-    if payload.total_amount and planned_total > payload.total_amount:
-        raise HTTPException(422, "جمع اقساط نمی‌تواند بیشتر از مبلغ کل باشد.")
+    if payload.repayment_amount is not None and payload.repayment_amount != planned_total:
+        raise HTTPException(422, "مبلغ بازپرداخت باید برابر با جمع اقساط باشد.")
     return {
         "planned_total": planned_total,
         "first_due_date": format_jalali_date(due_dates[0]),
@@ -62,7 +63,7 @@ def commitment_list():
         return [
             serialize(row)
             for row in db.execute(
-                """SELECT c.id, c.title, c.kind, c.total_amount, COUNT(i.id) AS installment_count,
+                """SELECT c.id, c.unique_code, c.title, c.kind, c.total_amount, c.repayment_amount, COUNT(i.id) AS installment_count,
                           COALESCE(SUM(i.amount), 0) AS planned_amount,
                           COALESCE(SUM(p.payment_amount), 0) AS paid_amount,
                           MIN(CASE WHEN i.amount > COALESCE(p.payment_amount, 0) THEN i.due_date END) AS next_unpaid_due_date,
@@ -83,20 +84,26 @@ def commitment_list():
 @router.patch("/commitments/{commitment_id}")
 def update_commitment(commitment_id: int, payload: CommitmentUpdate):
     with connection() as db:
-        existing = db.execute("SELECT id, title, kind, total_amount FROM commitments WHERE id = ?", (commitment_id,)).fetchone()
+        existing = db.execute(
+            "SELECT id, title, kind, total_amount, repayment_amount FROM commitments WHERE id = ?", (commitment_id,)
+        ).fetchone()
         if not existing:
             raise HTTPException(404, "تعهد پیدا نشد.")
         planned_amount = db.execute(
             "SELECT COALESCE(SUM(amount), 0) AS total FROM installments WHERE commitment_id = ?", (commitment_id,)
         ).fetchone()["total"]
-        if payload.total_amount and payload.total_amount < planned_amount:
-            raise HTTPException(422, "مبلغ کل نمی‌تواند کمتر از جمع اقساط باشد.")
+        if payload.repayment_amount is not None and payload.repayment_amount != planned_amount:
+            raise HTTPException(422, "مبلغ بازپرداخت باید برابر با جمع اقساط باشد.")
         db.execute(
-            "UPDATE commitments SET title = ?, kind = ?, total_amount = ? WHERE id = ?",
-            (payload.title, payload.kind, payload.total_amount, commitment_id),
+            "UPDATE commitments SET title = ?, kind = ?, total_amount = ?, repayment_amount = ? WHERE id = ?",
+            (payload.title, payload.kind, payload.total_amount, payload.repayment_amount, commitment_id),
         )
         write_audit_log(db, "update", "commitment", commitment_id, json.dumps({
-            "before": dict(existing), "after": {"title": payload.title, "kind": payload.kind, "total_amount": payload.total_amount}
+            "before": dict(existing),
+            "after": {
+                "title": payload.title, "kind": payload.kind,
+                "total_amount": payload.total_amount, "repayment_amount": payload.repayment_amount,
+            }
         }, ensure_ascii=False))
     return {"id": commitment_id}
 
@@ -186,9 +193,12 @@ def update_installment(installment_id: int, payload: InstallmentUpdate):
         planned_amount = db.execute(
             "SELECT COALESCE(SUM(amount), 0) FROM installments WHERE commitment_id = ?", (existing["commitment_id"],)
         ).fetchone()[0]
-        total_amount = db.execute("SELECT total_amount FROM commitments WHERE id = ?", (existing["commitment_id"],)).fetchone()[0]
-        if total_amount is not None and planned_amount - existing["amount"] + payload.amount > total_amount:
-            raise HTTPException(422, "جمع اقساط نمی‌تواند از مبلغ کل تعهد بیشتر باشد.")
+        repayment_amount = db.execute(
+            "SELECT repayment_amount FROM commitments WHERE id = ?", (existing["commitment_id"],)
+        ).fetchone()[0]
+        new_total = planned_amount - existing["amount"] + payload.amount
+        if repayment_amount is not None and new_total != repayment_amount:
+            raise HTTPException(422, "جمع اقساط باید برابر با مبلغ بازپرداخت تعهد باقی بماند.")
         db.execute(
             "UPDATE installments SET due_date = ?, amount = ?, note = ? WHERE id = ?",
             (payload.due_date.isoformat(), payload.amount, payload.note, installment_id),

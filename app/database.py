@@ -186,10 +186,16 @@ def initialize_database() -> None:
             """
         )
 
+        _ensure_column(db, "commitments", "repayment_amount INTEGER")
+        _ensure_column(db, "commitments", "unique_code TEXT")
         _ensure_column(db, "commitments", "source_key TEXT")
         _ensure_column(db, "installments", "source_key TEXT")
         _ensure_column(db, "payments", "source_key TEXT")
         _ensure_column(db, "transactions", "source_key TEXT")
+        db.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_commitments_unique_code "
+            "ON commitments(unique_code) WHERE unique_code IS NOT NULL"
+        )
         db.execute(
             "CREATE UNIQUE INDEX IF NOT EXISTS idx_commitments_source_key "
             "ON commitments(source_key) WHERE source_key IS NOT NULL"
@@ -207,6 +213,7 @@ def initialize_database() -> None:
             "ON transactions(source_key) WHERE source_key IS NOT NULL"
         )
         _apply_rial_to_toman_migration(db)
+        _assign_missing_unique_codes(db)
         db.execute(
             "INSERT OR IGNORE INTO app_settings(setting_key, setting_value) VALUES ('backup_enabled', 'true')"
         )
@@ -298,6 +305,27 @@ def _ensure_column(db: sqlite3.Connection, table: str, definition: str) -> None:
     columns = {row["name"] for row in db.execute(f"PRAGMA table_info({table})")}
     if column_name not in columns:
         db.execute(f"ALTER TABLE {table} ADD COLUMN {definition}")
+
+
+def allocate_unique_code(db: sqlite3.Connection) -> str:
+    """Return the next sequential 3-digit (or wider, past 999) commitment code."""
+    row = db.execute(
+        "SELECT MAX(CAST(unique_code AS INTEGER)) AS max_code FROM commitments "
+        "WHERE unique_code IS NOT NULL AND unique_code GLOB '[0-9]*'"
+    ).fetchone()
+    next_number = (row["max_code"] or 0) + 1
+    return f"{next_number:03d}"
+
+
+def _assign_missing_unique_codes(db: sqlite3.Connection) -> None:
+    missing_rows = db.execute(
+        "SELECT id FROM commitments WHERE unique_code IS NULL ORDER BY id"
+    ).fetchall()
+    for row in missing_rows:
+        db.execute(
+            "UPDATE commitments SET unique_code = ? WHERE id = ?",
+            (allocate_unique_code(db), row["id"]),
+        )
 
 
 def _apply_rial_to_toman_migration(db: sqlite3.Connection) -> None:

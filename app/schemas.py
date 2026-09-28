@@ -33,6 +33,7 @@ class CommitmentInput(BaseModel):
     title: str = Field(min_length=2, max_length=120)
     kind: str = Field(min_length=2, max_length=50)
     total_amount: int | None = Field(default=None, gt=0)
+    repayment_amount: int | None = Field(default=None, gt=0)
     installment_amount: int = Field(gt=0)
     first_due_date: date
     installment_count: int = Field(ge=1, le=600)
@@ -86,6 +87,7 @@ class CommitmentUpdate(BaseModel):
     title: str = Field(min_length=2, max_length=120)
     kind: str = Field(min_length=2, max_length=50)
     total_amount: int | None = Field(default=None, gt=0)
+    repayment_amount: int | None = Field(default=None, gt=0)
 
     @field_validator("title", "kind")
     @classmethod
