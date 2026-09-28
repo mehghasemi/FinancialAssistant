@@ -88,11 +88,21 @@ class CommitmentUpdate(BaseModel):
     kind: str = Field(min_length=2, max_length=50)
     total_amount: int | None = Field(default=None, gt=0)
     repayment_amount: int | None = Field(default=None, gt=0)
+    installment_count: int | None = Field(default=None, ge=1, le=600)
+    interval_months: int | None = Field(default=None, ge=1, le=12)
+    first_due_date: date | None = Field(default=None)
 
     @field_validator("title", "kind")
     @classmethod
     def normalize_required_text(cls, value: str) -> str:
         return normalize_text(value)
+
+    @field_validator("first_due_date", mode="before")
+    @classmethod
+    def parse_first_due_date(cls, value):
+        if value is None or value == "":
+            return None
+        return parse_jalali_date(value)
 
 
 class CommitmentGroupUpdate(BaseModel):

@@ -85,24 +85,64 @@ def commitment_list():
 def update_commitment(commitment_id: int, payload: CommitmentUpdate):
     with connection() as db:
         existing = db.execute(
-            "SELECT id, title, kind, total_amount, repayment_amount FROM commitments WHERE id = ?", (commitment_id,)
+            "SELECT id, title, kind, total_amount, repayment_amount, installment_count, interval_months FROM commitments WHERE id = ?", (commitment_id,)
         ).fetchone()
         if not existing:
             raise HTTPException(404, "تعهد پیدا نشد.")
-        planned_amount = db.execute(
-            "SELECT COALESCE(SUM(amount), 0) AS total FROM installments WHERE commitment_id = ?", (commitment_id,)
-        ).fetchone()["total"]
-        if payload.repayment_amount is not None and payload.repayment_amount != planned_amount:
-            raise HTTPException(422, "مبلغ بازپرداخت باید برابر با جمع اقساط باشد.")
+        
+        # اگر installment_count یا repayment_amount تغییر کند: اقساط را بازسازی کن
+        if payload.installment_count is not None or payload.repayment_amount is not None:
+            # ابتدا تاریخ اولین قسط موجود را بگیر (اگه payload ارسال نکرده)
+            old_installments = db.execute(
+                "SELECT due_date FROM installments WHERE commitment_id = ? ORDER BY due_date LIMIT 1", (commitment_id,)
+            ).fetchone()
+            first_due_date = payload.first_due_date or (old_installments["due_date"] if old_installments else None)
+            
+            # حذف اقساط قدیمی
+            db.execute("DELETE FROM installments WHERE commitment_id = ?", (commitment_id,))
+            
+            installment_count = payload.installment_count if payload.installment_count is not None else existing["installment_count"]
+            repayment_amount = payload.repayment_amount if payload.repayment_amount is not None else existing["repayment_amount"]
+            interval_months = payload.interval_months if payload.interval_months is not None else (existing["interval_months"] or 1)
+            
+            # ساخت اقساط جدید
+            if first_due_date and installment_count and repayment_amount:
+                from ..utils import add_months
+                
+                amount_per_installment = repayment_amount // installment_count
+                remainder = repayment_amount % installment_count
+                
+                for i in range(installment_count):
+                    # محاسبهٔ تاریخ قسط
+                    due_date = add_months(first_due_date, i * interval_months)
+                    
+                    # مبلغ: اخرین قسط = remainder + amount_per_installment
+                    amount = amount_per_installment + (remainder if i == installment_count - 1 else 0)
+                    
+                    db.execute(
+                        "INSERT INTO installments (commitment_id, due_date, amount, source_key) VALUES (?, ?, ?, ?)",
+                        (commitment_id, str(due_date), amount, f"patch-{commitment_id}-{i}")
+                    )
+        
+        # فیلدهای تعهد را به‌روز کن
         db.execute(
-            "UPDATE commitments SET title = ?, kind = ?, total_amount = ?, repayment_amount = ? WHERE id = ?",
-            (payload.title, payload.kind, payload.total_amount, payload.repayment_amount, commitment_id),
+            "UPDATE commitments SET title = ?, kind = ?, total_amount = ?, repayment_amount = ?, installment_count = ?, interval_months = ? WHERE id = ?",
+            (
+                payload.title,
+                payload.kind,
+                payload.total_amount,
+                payload.repayment_amount if payload.repayment_amount is not None else existing["repayment_amount"],
+                payload.installment_count if payload.installment_count is not None else existing["installment_count"],
+                payload.interval_months if payload.interval_months is not None else (existing["interval_months"] or 1),
+                commitment_id
+            ),
         )
         write_audit_log(db, "update", "commitment", commitment_id, json.dumps({
             "before": dict(existing),
             "after": {
                 "title": payload.title, "kind": payload.kind,
                 "total_amount": payload.total_amount, "repayment_amount": payload.repayment_amount,
+                "installment_count": payload.installment_count, "interval_months": payload.interval_months,
             }
         }, ensure_ascii=False))
     return {"id": commitment_id}
