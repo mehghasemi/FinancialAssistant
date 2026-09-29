@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import sqlite3
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 from datetime import datetime
 import os
 from pathlib import Path
 import sys
+
+from .migrations import SCHEMA_VERSION, allocate_unique_code, run_migrations
 
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
@@ -29,9 +31,11 @@ def write_audit_log(db: sqlite3.Connection, action: str, resource_type: str, res
 def create_database_backup(destination: str | Path) -> Path:
     backup_dir = Path(destination).expanduser().resolve()
     backup_dir.mkdir(parents=True, exist_ok=True)
-    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
     backup_path = backup_dir / f"financial_assistant_backup_{timestamp}.db"
-    source = sqlite3.connect(DATABASE_PATH)
+    if not DATABASE_PATH.is_file():
+        raise FileNotFoundError(DATABASE_PATH)
+    source = sqlite3.connect(DATABASE_PATH.resolve().as_uri() + "?mode=ro", uri=True)
     target = sqlite3.connect(backup_path)
     try:
         source.backup(target)
@@ -42,12 +46,14 @@ def create_database_backup(destination: str | Path) -> Path:
 
 
 @contextmanager
-def connection():
-    DATA_DIR.mkdir(exist_ok=True)
+def connection(*, write: bool = False):
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
     db = sqlite3.connect(DATABASE_PATH)
     db.row_factory = sqlite3.Row
     db.execute("PRAGMA foreign_keys = ON")
     try:
+        if write:
+            db.execute("BEGIN IMMEDIATE")
         yield db
         db.commit()
     except Exception:
@@ -58,6 +64,13 @@ def connection():
 
 
 def initialize_database() -> None:
+    if DATABASE_PATH.exists():
+        with closing(sqlite3.connect(DATABASE_PATH)) as current:
+            version = current.execute("PRAGMA user_version").fetchone()[0]
+        if version > SCHEMA_VERSION:
+            raise RuntimeError("Database was created by a newer application version")
+        if version < SCHEMA_VERSION:
+            create_database_backup(DATA_DIR / "backups")
     with connection() as db:
         db.executescript(
             """
@@ -186,34 +199,7 @@ def initialize_database() -> None:
             """
         )
 
-        _ensure_column(db, "commitments", "repayment_amount INTEGER")
-        _ensure_column(db, "commitments", "unique_code TEXT")
-        _ensure_column(db, "commitments", "source_key TEXT")
-        _ensure_column(db, "installments", "source_key TEXT")
-        _ensure_column(db, "payments", "source_key TEXT")
-        _ensure_column(db, "transactions", "source_key TEXT")
-        db.execute(
-            "CREATE UNIQUE INDEX IF NOT EXISTS idx_commitments_unique_code "
-            "ON commitments(unique_code) WHERE unique_code IS NOT NULL"
-        )
-        db.execute(
-            "CREATE UNIQUE INDEX IF NOT EXISTS idx_commitments_source_key "
-            "ON commitments(source_key) WHERE source_key IS NOT NULL"
-        )
-        db.execute(
-            "CREATE UNIQUE INDEX IF NOT EXISTS idx_installments_source_key "
-            "ON installments(source_key) WHERE source_key IS NOT NULL"
-        )
-        db.execute(
-            "CREATE UNIQUE INDEX IF NOT EXISTS idx_payments_source_key "
-            "ON payments(source_key) WHERE source_key IS NOT NULL"
-        )
-        db.execute(
-            "CREATE UNIQUE INDEX IF NOT EXISTS idx_transactions_source_key "
-            "ON transactions(source_key) WHERE source_key IS NOT NULL"
-        )
-        _apply_rial_to_toman_migration(db)
-        _assign_missing_unique_codes(db)
+        run_migrations(db)
         db.execute(
             "INSERT OR IGNORE INTO app_settings(setting_key, setting_value) VALUES ('backup_enabled', 'true')"
         )
@@ -223,6 +209,12 @@ def initialize_database() -> None:
         )
 
         accounts = ("حساب اصلی", "کارت بانکی", "نقدی")
+        db.execute(
+            """INSERT OR IGNORE INTO release_history(version, released_at, title, description, affected_areas)
+               VALUES ('0.8.0', '2026-09-28T00:00:00+03:30', 'بازپرداخت و ویرایش کامل تعهد',
+                       'اصلاح مدیریت داشبورد، دریافت بازپرداخت، ویرایش همهٔ اقساط با حفظ پرداخت و ارتقای امن اطلاعات.',
+                       'داشبورد، تعهدات، اقساط، دیتابیس و اجرای ویندوز')"""
+        )
         db.executemany("INSERT OR IGNORE INTO accounts(name) VALUES (?)", ((name,) for name in accounts))
 
         categories = (
@@ -300,53 +292,20 @@ def initialize_database() -> None:
         )
 
 
-def _ensure_column(db: sqlite3.Connection, table: str, definition: str) -> None:
-    column_name = definition.split()[0]
-    columns = {row["name"] for row in db.execute(f"PRAGMA table_info({table})")}
-    if column_name not in columns:
-        db.execute(f"ALTER TABLE {table} ADD COLUMN {definition}")
-
-
-def allocate_unique_code(db: sqlite3.Connection) -> str:
-    """Return the next sequential 3-digit (or wider, past 999) commitment code."""
-    row = db.execute(
-        "SELECT MAX(CAST(unique_code AS INTEGER)) AS max_code FROM commitments "
-        "WHERE unique_code IS NOT NULL AND unique_code GLOB '[0-9]*'"
-    ).fetchone()
-    next_number = (row["max_code"] or 0) + 1
-    return f"{next_number:03d}"
-
-
-def _assign_missing_unique_codes(db: sqlite3.Connection) -> None:
-    missing_rows = db.execute(
-        "SELECT id FROM commitments WHERE unique_code IS NULL ORDER BY id"
-    ).fetchall()
-    for row in missing_rows:
-        db.execute(
-            "UPDATE commitments SET unique_code = ? WHERE id = ?",
-            (allocate_unique_code(db), row["id"]),
-        )
-
-
-def _apply_rial_to_toman_migration(db: sqlite3.Connection) -> None:
-    migration_key = "rial_amounts_to_toman_20260919"
-    if db.execute("SELECT 1 FROM data_migrations WHERE migration_key = ?", (migration_key,)).fetchone():
-        return
-    for table, column in (
-        ("transactions", "amount"),
-        ("commitments", "total_amount"),
-        ("installments", "amount"),
-        ("payments", "amount"),
-        ("budget_items", "amount"),
-    ):
-        db.execute(f"UPDATE {table} SET {column} = CAST({column} / 10 AS INTEGER) WHERE {column} IS NOT NULL")
-    db.execute("INSERT INTO data_migrations(migration_key) VALUES (?)", (migration_key,))
-
-
 def get_setting(key: str, default: str = "") -> str:
     with connection() as db:
         row = db.execute("SELECT setting_value FROM app_settings WHERE setting_key = ?", (key,)).fetchone()
     return row["setting_value"] if row else default
+
+
+def clear_financial_data() -> Path:
+    """Back up under a write lock, then atomically clear operational data."""
+    with connection(write=True) as db:
+        backup_path = create_database_backup(DATA_DIR / "backups")
+        for table in ("payments", "installments", "commitments", "transactions",
+                      "budget_items", "imported_rows", "import_runs", "audit_logs"):
+            db.execute(f"DELETE FROM {table}")
+    return backup_path
 
 
 def set_setting(key: str, value: str) -> None:

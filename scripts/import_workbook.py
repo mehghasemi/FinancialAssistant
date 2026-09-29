@@ -178,9 +178,9 @@ def import_commitments(db, import_id: int, values_workbook) -> tuple[int, int, i
     for group_index, ((title, total, original_date), rows) in enumerate(groups.items(), start=1):
         commitment_key = f"commitment:financial-obligations:{group_index}:{title}:{total}:{original_date}"
         db.execute(
-            """INSERT OR IGNORE INTO commitments(title, kind, total_amount, source_key)
-               VALUES (?, ?, ?, ?)""",
-            (title, "تعهد مالی واردشده از اکسل", total, commitment_key),
+            """INSERT OR IGNORE INTO commitments(title, kind, total_amount, source_key, unique_code)
+               VALUES (?, ?, ?, ?, ?)""",
+            (title, "تعهد مالی واردشده از اکسل", total, commitment_key, database.allocate_unique_code(db)),
         )
         commitment_id = db.execute(
             "SELECT id FROM commitments WHERE source_key = ?", (commitment_key,)

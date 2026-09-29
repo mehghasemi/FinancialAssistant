@@ -55,6 +55,7 @@ class WorkbookImportTests(unittest.TestCase):
         with database.connection() as db:
             self.assertEqual(db.execute("SELECT COUNT(*) FROM imported_rows").fetchone()[0], 5)
             self.assertEqual(db.execute("SELECT COUNT(*) FROM commitments").fetchone()[0], 1)
+            self.assertEqual(db.execute("SELECT unique_code FROM commitments").fetchone()[0], "001")
             self.assertEqual(db.execute("SELECT COUNT(*) FROM installments").fetchone()[0], 1)
             self.assertEqual(db.execute("SELECT COUNT(*) FROM payments").fetchone()[0], 1)
             self.assertEqual(db.execute("SELECT COUNT(*) FROM budget_items").fetchone()[0], 1)

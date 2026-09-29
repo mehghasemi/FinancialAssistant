@@ -1,191 +1,24 @@
-# FinancialAssistant — کدبیس شناسه (Index)
+# نقشهٔ کد FinancialAssistant
 
-**آخرین بروزرسانی:** ۱۴۰۵/۰۶/۰۸ (fix-persian-dates)  
-**حالت:** 
-- تاریخ‌ها شمسی (خودکار تبدیل از ISO/میلادی)
-- تابع `toJalaliDate()` برای تبدیل تاریخ‌ها
-- Modal ویرایش: تاریخ اولین قسط شمسی
+این فایل فقط راهنمای یافتن کد فعال است؛ جزئیات رفتار را از کد همان بخش بخوانید. فرمان‌های زیر با `.\.venv\Scripts\python.exe -B scripts/check.py --scope` اجرا می‌شوند.
 
----
-
-## Backend — Python
-
-### `app/database.py` (۳۵۸ خط)
-| تابع/کلاس | خط | توضیح |
+| موضوع | فایل‌های مرجع | دامنهٔ بررسی |
 |---|---|---|
-| `connection()` | ۲۳-۲۸ | اتصال SQLite |
-| `initialize_database()` | ۶۰-۲۰۰ | ایجاد/تصحیح جداول |
-| `allocate_unique_code()` | ۲۰۲-۲۱۰ | تولید کد ۳ رقمی (001, 002, ...) |
-| `_assign_missing_unique_codes()` | ۲۱۲-۲۲۰ | پرکردن کدهای قدیمی (migration) |
-| `_apply_rial_to_toman_migration()` | ۲۲۲-۲۴۵ | تبدیل مقادیر ریال→توان |
-| `write_audit_log()` | ۲۴۷-۲۶۰ | ثبت تغییرات |
+| راه‌اندازی و اتصال مسیرها | `app/main.py`، `app/launcher.py`، `launcher.py`، `run.ps1`، `scripts/dev.ps1`، `scripts/build.ps1`، `app/smoke.py` | `api`؛ سپس اجرای محلی در صورت نیاز |
+| تعهد، اقساط و پرداخت | `app/services/finance.py`، `app/routers/commitments.py`، `app/schemas.py`، `app/utils.py` | `finance` و `api` |
+| تقویم شمسی | `app/calendar.py`، `app/utils.py` | `calendar` و برای تغییر محاسبهٔ اقساط `finance` |
+| دیتابیس، مهاجرت و پشتیبان | `app/database.py`، `app/migrations.py`، `app/services/backups.py`، `scripts/restore_backup.py` | `all` |
+| درآمد، هزینه و داشبورد | `app/routers/transactions.py`، `app/routers/dashboard.py` | `all`؛ پوشش مستقیم فعلی محدود است |
+| ورود Sheet4 از رابط و CLI | `app/routers/imports.py`، `app/services/excel_import.py`، `scripts/import_sheet4.py` | `api`؛ آپلود و جلوگیری از ورود تکراری |
+| واردسازی جامع اکسل | `scripts/import_workbook.py` | `import` |
+| رابط فارسی | `static/index.html`، `static/app.js`، `static/styles.css` | `syntax` و بررسی رفتار بخش تغییرکرده در مرورگر |
+| نسخه و تنظیمات اجرا | `app/config.py`، `requirements.txt` | `syntax` و بررسی مرتبط با تغییر |
 
-**جداول اصلی:**
-- `commitments`: id, title, kind, total_amount, **repayment_amount**, **unique_code**, source_key, created_at
-- `installments`: id, commitment_id, due_date, amount, note, source_key
-- `payments`: id, installment_id, amount, paid_on, account_id, note, source_key
+- `finance`: فایل `tests/test_financial_flow.py`؛ `calendar`: فایل `tests/test_jalali_calendar.py`؛ `import`: فایل `tests/test_workbook_import.py`.
+- `api`: فایل `tests/test_api.py`؛ `recovery`: فایل `tests/test_recovery.py`؛ وابستگی تست در `requirements-dev.txt`.
+- `syntax` پایتون فعال و JavaScript را بررسی می‌کند؛ در نبود Node بررسی JavaScript صریحاً skipped می‌شود. همهٔ دامنه‌ها ابتدا بررسی نحوی را اجرا می‌کنند.
+- تست‌ها دیتابیس موقت دارند؛ تست HTTP چرخهٔ عمر برنامه را درون فرایند تست اجرا می‌کند. سرور واقعی یا دیتابیس کاربر اجرا نمی‌شود؛ خطاها exit code غیرصفر دارند.
+- اجرا: فقط `release/FinancialAssistant.exe`؛ `run.ps1` میان‌بر آن است. راهنمای ساخت و توسعه: `docs/development.md`. نسخه‌های تکراری ریشه و `excel-import-ui/` حذف شده‌اند.
+- جزئیات معماری: `docs/architecture.md`؛ قراردادها: `docs/api.md`؛ تاریخچه: `CHANGELOG.md`. هنگام اختلاف، کد اجرایی مرجع است.
 
----
-
-### `app/routers/commitments.py` (۲۹۶ خط)
-| Endpoint | متد | خط | توضیح |
-|---|---|---|---|
-| `/commitments` | POST | ۲۶-۴۵ | ساخت تعهد + اقساط (unique_code خودکار) |
-| `/commitments` | GET | ۴۷-۸۰ | لیست تعهدات (شامل unique_code) |
-| `/commitments/{id}` | PATCH | ۸۲-۱۱۰ | ویرایش تعهد (تکی، نه گروپی) |
-| `/commitments/preview` | POST | ۱۱۲-۱۳۵ | پیش‌نمایش اقساط |
-| `/installments` | GET | ۱۳۷-۱۸۵ | لیست اقساط |
-| `/installments/{id}` | PATCH | ۱۸۷-۲۱۰ | ویرایش قسط (repayment validation) |
-| `/payments` | POST | ۲۱۲-۲۳۰ | ثبت پرداخت |
-| `/payments/{id}` | PATCH | ۲۳۲-۲۵۰ | ویرایش پرداخت |
-| `/commitment-filters` | GET | ۲۶۲-۲۹۶ | فیلترهای جدول |
-
-**اعتبارسنجی‌های اصلی:**
-- خط ۲۹-۳۱: repayment_amount = sum(installments.amount) ✅
-- خط ۱۹۲-۱۹۹: قسط‌ها: repayment_amount باید یکی باشد ✅
-
----
-
-### `app/services/excel_import.py` (۱۶۷ خط)
-| تابع | خط | توضیح |
-|---|---|---|
-| `import_sheet4()` | ۴۰-۱۶۵ | ایمپورت Sheet4 اکسل (idempotent) |
-| `_cell_text()` | ۲۸-۳۰ | تمیز‌کردن متن |
-| `_amount_value()` | ۳۲-۴۰ | تبدیل مبلغ ریال→توان (÷۱۰) |
-| `ExcelImportError` | ۲۳-۲۵ | Exception اختصاصی |
-
-**قوانین ایمپورت:**
-- خط ۵: فقط Sheet4
-- خط ۷۲: مبلغ ÷۱۰ (ریال→توان)
-- خط ۸۷: unique_code خودکار روی تعهد
-- خط ۱۰۰-۱۲۰: repayment_amount = sum اقساط گروه
-
----
-
-### `app/routers/imports.py` (۲۰ خط)
-| Endpoint | متد | خط |
-|---|---|---|
-| `/imports/sheet4` | POST | ۸-۲۰ |
-
----
-
-## Frontend — JavaScript
-
-### `static/app.js` (۳۶۷ خط)
-
-#### متغیرهای عمومی
-| متغیر | خط | توضیح |
-|---|---|---|
-| `api()` | ۱-۴ | fetch helper |
-| `commitmentList` | ۱۰ | آرایهٔ تعهدات (تکی، نه گروپ) |
-| `commitmentSort` | ۱۱ | {key, direction} |
-| `commitmentGridFilters` | ۱۲ | Map فیلترها |
-
-#### توابع رندر
-| تابع | خط | توضیح |
-|---|---|---|
-| `groupedCommitments()` | ۷۵-۸۶ | **نقشه:** هر item = یک ردیف (بدون گروپ) |
-| `commitmentDisplay()` | ۶۷-۷۴ | محاسبهٔ status, distance |
-| `renderCommitmentGrid()` | ۱۲۴-۱۶۵ | رندر جدول (۱۰ ستون: کد، عنوان، نوع، مبلغ، اقساط، ...) |
-| `renderCommitmentFilters()` | ۱۰۴-۱۲۳ | فیلترها |
-| `matchesCommitmentFilters()` | ۹۴-۱۰۲ | تطابق فیلتر (تکی، نه گروپی) |
-
-#### توابع ویرایش (Inline Modal)
-| تابع | خط | توضیح |
-|---|---|---|
-| `openGridCommitmentEdit()` | ۲۱۶-۲۲۲ | ویرایش تعهد **تکی** (نه گروپی) |
-| `openInlineInstallmentEdit()` | ۲۱۰-۲۱۵ | ویرایش قسط |
-| `openInlinePayment()` | ۱۶۸-۱۷۵ | ثبت پرداخت |
-
-#### Event Listeners
-| رویداد | خط | عنصر | عملیات |
-|---|---|---|---|
-| click | ۲۶۱ | `#commitmentRows` | `.edit-grid-group` (ویرایش تکی) |
-| submit | ۲۶۲-۲۷۱ | commitment form | PATCH /commitments/{id} (تکی) |
-| click | ۲۹۷ | `#commitmentGridFilters` | toggle فیلتر |
-
----
-
-### `static/index.html` (۹۷ خط)
-
-#### Grid Header
-| ستون | خط | توضیح |
-|---|---|---|
-| کد یکتا | ۴۲ | unique_code (001, 002, 003, ...) |
-| عنوان | ۴۲ | title |
-| نوع | ۴۲ | kind |
-| مبلغ کل | ۴۲ | total_amount (اطلاعاتی) |
-| اقساط | ۴۲ | installment_count |
-| جمع‌اقساط | ۴۲ | planned_amount |
-| پرداخت | ۴۲ | paid_amount |
-| وضعیت | ۴۲ | settled/partial/unpaid |
-| فاصله | ۴۲ | روز مانده/گذشته |
-| عملیات | ۴۲ | ویرایش (تکی) |
-
----
-
-## Database Schema (جاری)
-
-### commitments
-```sql
-id              INTEGER PRIMARY KEY
-title           TEXT
-kind            TEXT
-total_amount    INTEGER         /* مبلغ اطلاعاتی، بدون اعتبارسنجی */
-repayment_amount INTEGER        /* = SUM(installments.amount) → اعتبار سنجی */
-unique_code     TEXT UNIQUE     /* 001, 002, 003, ... */
-source_key      TEXT UNIQUE     /* برای idempotency ایمپورت */
-created_at      TIMESTAMP
-```
-
-### installments
-```sql
-id              INTEGER PRIMARY KEY
-commitment_id   INTEGER FOREIGN KEY → commitments(id)
-due_date        TEXT (YYYY-MM-DD)
-amount          INTEGER
-note            TEXT
-source_key      TEXT UNIQUE
-```
-
-### payments
-```sql
-id              INTEGER PRIMARY KEY
-installment_id  INTEGER FOREIGN KEY → installments(id)
-amount          INTEGER
-paid_on         TEXT (YYYY-MM-DD)
-account_id      INTEGER (nullable)
-note            TEXT
-source_key      TEXT UNIQUE
-```
-
----
-
-## مراجع سریع
-
-### وقتی می‌خوای:
-- **اضافه کردن فیلد تعهد:** `app/database.py` ۱۸۰-۱۹۰ + `app/schemas.py` ۱۰-۲۲
-- **اضافه کردن Endpoint:** `app/routers/commitments.py` + schema
-- **تغییر رندر جدول:** `static/app.js` ۱۲۴-۱۶۵ (renderCommitmentGrid)
-- **تغییر ستون جدول:** `static/index.html` ۴۲ + `static/app.js` ۱۲۴ (HTML generation)
-- **تغییر ویرایش:** `static/app.js` ۲۱۶-۲۲۲ (openGridCommitmentEdit) — **هفت تکی، نه گروپی**
-- **تغییر فیلتر:** `static/app.js` ۱۰۴-۱۲۳ (renderCommitmentFilters)
-- **تغییر ایمپورت:** `app/services/excel_import.py` ۴۰-۱۶۵
-
----
-
-## نکات کلیدی (single-row-grid)
-
-✅ **هر تعهد = یک ردیف مستقل**
-- سه «خرجی خانه» = ۳ ردیف جداگانه (کدهای ۰۰۱، ۰۰۲، ۰۰۳)
-- دکمهٔ "ویرایش" = **فقط آن ردیف**، نه همهٔ هم‌نام‌ها
-
-✅ **Unique Code درستی**
-- هر تعهد کدش توی جدول نشون داده می‌شه
-- موقع ایمپورت: `allocate_unique_code()` اختصاص می‌دهد
-- Migration: تعهدات قدیمی کدهاشان خودکار دریافت می‌کنند
-
-✅ **repayment_amount**
-- خط ۲۹-۳۱ commitments.py: sum(installments) = repayment_amount ✅
-- دیگه total_amount سقفی نیست
-
+قواعد ویرایش امن و ارتقای داده در `docs/architecture.md` و روش بازیابی در `docs/recovery.md` هستند.

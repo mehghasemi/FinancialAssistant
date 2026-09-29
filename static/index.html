@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>همراه مالی</title>
-    <link rel="stylesheet" href="/static/styles.css" />
+    <link rel="stylesheet" href="/static/styles.css?v=0.8.0" />
   </head>
   <body>
     <div class="shell">
@@ -32,7 +32,7 @@
           </div>
           <div class="columns">
             <article class="panel"><div class="panel-title"><h2>تعهدات ماه انتخاب‌شده</h2><span id="commitmentSummary"></span></div><div class="progress"><i id="commitmentProgress"></i></div><div class="split-total"><span>برنامه‌ریزی‌شده: <b id="plannedValue">—</b></span><span>پرداخت واقعی: <b id="paidValue">—</b></span></div></article>
-            <article class="panel"><div class="panel-title"><h2>سررسیدهای نیازمند اقدام</h2><button class="quiet" data-page="commitments">مدیریت</button></div><div id="upcomingList" class="list empty">موردی برای نمایش نیست.</div></article>
+            <article class="panel"><div class="panel-title"><h2>سررسیدهای نیازمند اقدام</h2><button class="quiet" data-page="installmentManagement">مدیریت</button></div><div id="upcomingList" class="list empty">موردی برای نمایش نیست.</div></article>
           </div>
         </section>
 
@@ -60,15 +60,16 @@
           <div class="columns definition-columns">
             <form id="commitmentForm" class="panel form-panel">
               <h2>اطلاعات تعهد جدید</h2>
-              <div class="field"><label for="commitmentTitle">عنوان تعهد</label><input id="commitmentTitle" placeholder="مثلاً وام بانک رسالت" required /></div>
+              <div class="field"><label for="commitmentTitle">عنوان تعهد</label><input id="commitmentTitle" minlength="2" maxlength="120" placeholder="مثلاً وام بانک رسالت" required /></div>
               <div class="field"><label for="commitmentKind">نوع</label><select id="commitmentKind"><option>وام</option><option>هزینهٔ ثابت</option><option>چک</option><option>بدهی</option></select></div>
-              <div class="field"><label for="commitmentTotal">مبلغ کل</label><input id="commitmentTotal" data-amount inputmode="numeric" placeholder="مثلاً ۱۰۰٬۰۰۰٬۰۰۰" /></div>
+              <div class="field"><label for="commitmentTotal">مبلغ وام / اصل تعهد (تومان)</label><input id="commitmentTotal" data-amount inputmode="numeric" placeholder="مثلاً ۱۰۰٬۰۰۰٬۰۰۰" /></div>
+              <div class="field"><label for="commitmentRepayment">مبلغ بازپرداخت (تومان)</label><input id="commitmentRepayment" data-amount inputmode="numeric" required /></div>
               <div class="field"><label for="installmentAmount">مبلغ هر قسط</label><input id="installmentAmount" data-amount inputmode="numeric" required /></div>
-              <div class="field"><label for="installmentCount">تعداد اقساط</label><input id="installmentCount" type="number" min="1" value="12" required /></div>
+              <div class="field"><label for="installmentCount">تعداد اقساط</label><input id="installmentCount" type="number" min="1" max="600" value="12" required /></div>
               <div class="field"><label for="firstDueDate">تاریخ اولین قسط (شمسی)</label><input id="firstDueDate" inputmode="numeric" placeholder="۱۴۰۵/۰۷/۰۱" required /></div>
               <div class="field"><label for="intervalMonths">دورهٔ پرداخت (ماه)</label><input id="intervalMonths" type="number" min="1" max="12" value="1" required /></div>
               <div class="field"><label for="lastDueDate">تاریخ پایان (محاسبه‌شده)</label><input id="lastDueDate" readonly placeholder="پس از پیش‌نمایش نمایش داده می‌شود" /></div>
-              <details class="help"><summary>؟ راهنما</summary><p>مثلاً برای وام ۱۰ قسطه، تعداد را ۱۰ و دوره را ۱ ماه وارد کنید. ابتدا پیش‌نمایش را بررسی و سپس ثبت نهایی را تأیید کنید.</p></details>
+              <details class="help"><summary>؟ راهنما</summary><p>مثلاً برای وام ۱۰ قسطه، تعداد را ۱۰ و دوره را ۱ ماه وارد کنید. مبلغ بازپرداخت را وارد کنید؛ مبلغ هر قسط پیشنهاد می‌شود و قابل تغییر است. اختلاف جمع اقساط با بازپرداخت روی قسط آخر اعمال می‌شود. ابتدا پیش‌نمایش را بررسی و سپس ثبت نهایی را تأیید کنید.</p></details>
               <button class="quiet" id="previewCommitment" type="button">نمایش پیش‌نمایش اقساط</button>
               <button class="primary" id="saveCommitment" type="submit" disabled>تأیید و ثبت تعهد</button><p class="form-message" id="commitmentMessage" role="status" aria-live="polite"></p>
             </form>
@@ -83,7 +84,13 @@
         </section>
         <section id="settings" class="page">
           <header><div><h1>تنظیمات سیستم</h1><p>محل و رفتار پشتیبان‌گیری دیتابیس را تعیین کنید.</p></div></header>
-          <article class="panel settings-panel"><form id="settingsForm" class="form-panel"><h2>پشتیبان‌گیری</h2><label class="toggle-field"><input id="backupEnabled" type="checkbox" /> تهیهٔ پشتیبان خودکار هنگام خروج از برنامه</label><div class="field"><label for="backupDirectory">مسیر ذخیرهٔ پشتیبان‌ها</label><input id="backupDirectory" maxlength="500" required /></div><div class="settings-actions"><button class="primary" type="submit">ذخیرهٔ تنظیمات</button><button class="quiet" id="manualBackup" type="button">تهیهٔ پشتیبان اکنون</button></div><p class="form-message" id="settingsMessage" role="status" aria-live="polite"></p></form></article><article class="panel settings-panel"><h2>ورود داده از اکسل</h2><p class="help-text">فایل اکسل تعهدات (Sheet4) را انتخاب کنید تا تعهدات، اقساط و پرداخت‌ها به‌صورت خودکار ثبت شوند. اجرای دوباره روی همان فایل، رکورد تکراری نمی‌سازد.</p><div class="field"><label for="importSheet4File">فایل اکسل (xlsx)</label><input id="importSheet4File" type="file" accept=".xlsx,.xlsm" /></div><div class="settings-actions"><button class="primary" id="importSheet4Submit" type="button">وارد کردن داده</button></div><p class="form-message" id="importSheet4Message" role="status" aria-live="polite"></p><div id="importSheet4Result" class="list" aria-live="polite"></div></article>
+          <article class="panel settings-panel"><form id="settingsForm" class="form-panel"><h2>پشتیبان‌گیری</h2><label class="toggle-field"><input id="backupEnabled" type="checkbox" /> پشتیبان خودکار هنگام شروع، هر ۱۵ دقیقه و هنگام خروج</label><div class="field"><label for="backupDirectory">مسیر ذخیرهٔ پشتیبان‌ها</label><input id="backupDirectory" maxlength="500" required /></div><div class="settings-actions"><button class="primary" type="submit">ذخیرهٔ تنظیمات</button><button class="quiet" id="manualBackup" type="button">تهیهٔ پشتیبان اکنون</button></div><p class="form-message" id="settingsMessage" role="status" aria-live="polite"></p></form></article><article class="panel settings-panel"><h2>ورود داده از اکسل</h2><p class="help-text">فایل اکسل تعهدات (Sheet4) را انتخاب کنید تا تعهدات، اقساط و پرداخت‌ها به‌صورت خودکار ثبت شوند. اجرای دوباره روی همان فایل، رکورد تکراری نمی‌سازد.</p><div class="field"><label for="importSheet4File">فایل اکسل (xlsx)</label><input id="importSheet4File" type="file" accept=".xlsx,.xlsm" /></div><div class="settings-actions"><button class="primary" id="importSheet4Submit" type="button">وارد کردن داده</button></div><p class="form-message" id="importSheet4Message" role="status" aria-live="polite"></p><div id="importSheet4Result" class="list" aria-live="polite"></div></article>
+          <article class="panel settings-panel">
+            <h2>خالی کردن اطلاعات مالی</h2>
+            <p class="help-text">همهٔ تراکنش‌ها، تعهدات، اقساط، پرداخت‌ها، بودجه‌ها و سوابق ورود داده و تغییرات حذف می‌شوند تا بتوانید دوباره ایمپورت کنید. تنظیمات، حساب‌ها و دسته‌بندی‌ها حفظ می‌شوند. پیش از حذف، یک پشتیبان در پوشهٔ backups کنار دیتابیس ذخیره می‌شود.</p>
+            <button class="quiet clear-data-button" id="clearFinancialData" type="button">پاک کردن همهٔ اطلاعات مالی</button>
+            <p class="form-message" id="clearDataMessage" role="status" aria-live="polite"></p>
+          </article>
         </section>
         <section id="help" class="page">
           <header><div><h1>راهنمای سیستم</h1><p>نکات کوتاه برای استفاده و نگهداری از اطلاعات مالی</p></div></header>
@@ -93,6 +100,6 @@
       </main>
     </div>
     <template id="emptyRow"><tr><td colspan="6" class="empty-cell">هنوز داده‌ای ثبت نشده است.</td></tr></template>
-    <script src="/static/app.js"></script>
+    <script src="/static/app.js?v=0.8.0"></script>
   </body>
 </html>

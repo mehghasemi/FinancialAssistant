@@ -4,8 +4,8 @@ from fastapi import APIRouter, Query
 
 from ..calendar import format_jalali_datetime
 from ..config import APP_VERSION, MAX_PAGE_SIZE
-from ..database import connection, create_database_backup, get_setting, set_setting
-from ..schemas import SettingsInput
+from ..database import connection, create_database_backup, get_setting, set_setting, clear_financial_data
+from ..schemas import SettingsInput, ClearDataInput
 from ..utils import serialize
 
 router = APIRouter(prefix="/api", tags=["settings"])
@@ -13,7 +13,7 @@ router = APIRouter(prefix="/api", tags=["settings"])
 
 @router.get("/health")
 def health():
-    return {"status": "ok", "database": "sqlite", "version": APP_VERSION}
+    return {"status": "ok", "application": "FinancialAssistant", "database": "sqlite", "version": APP_VERSION}
 
 
 @router.get("/settings")
@@ -35,6 +35,12 @@ def update_settings(payload: SettingsInput):
 def create_backup():
     backup_path = create_database_backup(get_setting("backup_directory", ""))
     return {"path": str(backup_path)}
+
+
+@router.post("/settings/clear-data")
+def clear_data(payload: ClearDataInput):
+    backup_path = clear_financial_data()
+    return {"status": "cleared", "backup_path": str(backup_path)}
 
 
 @router.get("/releases")

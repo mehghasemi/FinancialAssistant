@@ -1,40 +1,13 @@
-# نصب تغییرات: Fix Persian Dates
+# اجرای همراه مالی
 
-## مراحل نصب:
+1. روی `release/FinancialAssistant.exe` دوبار کلیک کنید؛ Python برای استفاده از EXE لازم نیست.
+2. مرورگر پس از آماده‌شدن برنامه باز می‌شود. در صورت نیاز آدرس `http://127.0.0.1:8000` را باز کنید.
+3. پنجرهٔ برنامه را باز نگه دارید. برای خروج امن در همان پنجره `Ctrl+C` بزنید و تا بسته‌شدن برنامه صبر کنید.
 
-### ۱) فایل‌ها را جایگزین کن
-```powershell
-$src = "D:\MyData\MyApp-AI\NewFileForFinancialAssistant\final-package"
-$dst = "D:\MyData\MyApp-AI\FinancialAssistant"
+`run.ps1` همین EXE را اجرا می‌کند. پیش از جایگزینی نسخهٔ اجرایی، برنامهٔ قبلی را ببندید. پس از به‌روزرسانی برای تازه‌شدن رابط مرورگر `Ctrl+F5` بزنید.
 
-# Frontend
-Copy-Item "$src\static\app.js" "$dst\static\app.js" -Force
-```
+داده‌ها و بکاپ‌های پیش‌فرض در `%LOCALAPPDATA%/FinancialAssistant` نگهداری می‌شوند و همراه EXE حذف یا جایگزین نمی‌شوند. در صورت تعیین `FINANCIAL_ASSISTANT_DATA_DIR` مسیر انتخاب‌شده استفاده می‌شود.
 
-### ۲) تست برنامه
-```powershell
-cd D:\MyData\MyApp-AI\FinancialAssistant
-.\.venv\Scripts\python.exe -c "from app.main import app; print('OK')"
-```
+اگر EXE وجود ندارد، سازندهٔ پروژه باید یک‌بار [مراحل ساخت](docs/development.md) را انجام دهد. تغییر کد منبع تا ساخت نسخهٔ تازه در EXE دیده نمی‌شود.
 
-### ۳) اجرای برنامه
-```powershell
-.\run.ps1
-```
-
-### ۴) تست در مرورگر
-- **منو:** مدیریت تعهدات
-- **گرید:** دکمهٔ "ویرایش" یک تعهد
-- **تاریخ اولین قسط:** باید شمسی باشد (مثلاً ۱۴۰۵/۰۶/۲۸)
-
----
-
-## تغییرات خلاصه
-
-✅ **تابع تبدیل تاریخ:**
-- `toJalaliDate()` — تاریخ میلادی (ISO) → شمسی
-
-✅ **استفاده در Modal ویرایش:**
-- تاریخ اولین قسط شمسی نمایش داده می‌شود
-- Input فیلد: شمسی
-
+[بازیابی بکاپ](docs/recovery.md)

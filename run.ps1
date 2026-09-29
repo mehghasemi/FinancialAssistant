@@ -1,2 +1,7 @@
 $ErrorActionPreference = 'Stop'
-& "$PSScriptRoot\.venv\Scripts\python.exe" -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+$executable = Join-Path $PSScriptRoot 'release\FinancialAssistant.exe'
+if (-not (Test-Path -LiteralPath $executable)) {
+    throw 'Executable not found. Build it once with: .\scripts\build.ps1'
+}
+& $executable
+exit $LASTEXITCODE

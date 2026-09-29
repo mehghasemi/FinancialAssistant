@@ -88,6 +88,7 @@ class CommitmentUpdate(BaseModel):
     kind: str = Field(min_length=2, max_length=50)
     total_amount: int | None = Field(default=None, gt=0)
     repayment_amount: int | None = Field(default=None, gt=0)
+    installment_amount: int | None = Field(default=None, gt=0)
     installment_count: int | None = Field(default=None, ge=1, le=600)
     interval_months: int | None = Field(default=None, ge=1, le=12)
     first_due_date: date | None = Field(default=None)
@@ -139,3 +140,7 @@ class SettingsInput(BaseModel):
     @classmethod
     def normalize_backup_directory(cls, value: str) -> str:
         return str(Path(value).expanduser())
+
+
+class ClearDataInput(BaseModel):
+    confirmation: Literal["DELETE_ALL_FINANCIAL_DATA"]
