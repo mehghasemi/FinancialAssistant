@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
+import json
 from contextlib import closing, contextmanager
 from datetime import datetime
 import os
@@ -22,9 +23,9 @@ DATABASE_PATH = DATA_DIR / "financial_assistant.db"
 
 def write_audit_log(db: sqlite3.Connection, action: str, resource_type: str, resource_id: int, details: str = "") -> None:
     db.execute(
-        """INSERT INTO audit_logs(action, resource_type, resource_id, details)
-           VALUES (?, ?, ?, ?)""",
-        (action, resource_type, resource_id, details),
+        """INSERT INTO audit_logs(action, resource_type, resource_id, details, created_at)
+           VALUES (?, ?, ?, ?, ?)""",
+        (action, resource_type, resource_id, details, datetime.now().astimezone().isoformat()),
     )
 
 
@@ -211,6 +212,48 @@ def initialize_database() -> None:
         accounts = ("حساب اصلی", "کارت بانکی", "نقدی")
         db.execute(
             """INSERT OR IGNORE INTO release_history(version, released_at, title, description, affected_areas)
+               VALUES ('0.14.0', '2026-09-29T17:00:00+03:30', 'ویرایش مستقل قسط و رویدادنگاری',
+                       'به‌روزرسانی بازپرداخت با اختلاف مبلغ قسط؛ رویدادنگاری تاریخ‌دار با جزئیات و حفظ سوابق پس از پاک‌سازی.',
+                       'اقساط، تعهدات، تنظیمات و رویدادها')"""
+        )
+        db.execute(
+            """INSERT OR IGNORE INTO release_history(version, released_at, title, description, affected_areas)
+               VALUES ('0.13.0', '2026-09-29T16:00:00+03:30', 'ستون‌ها و فیلترهای تعهدات',
+                       'نمایش شروع و پایان، مبالغ و تعداد اقساط باقی‌مانده؛ فیلتر سال شمسی شروع و پایان، تسویه و قسط معوق.',
+                       'فهرست تعهدات')"""
+        )
+        db.execute(
+            """INSERT OR IGNORE INTO release_history(version, released_at, title, description, affected_areas)
+               VALUES ('0.12.0', '2026-09-29T15:00:00+03:30', 'فهرست تعهدات و جزئیات اقساط',
+                       'ستون‌ها و فیلترهای مستقل تعهد؛ مشاهدهٔ خلاصه و اقساط هر کد تعهد با امکان پرداخت و ویرایش.',
+                       'تعهدات و اقساط')"""
+        )
+        db.execute(
+            """INSERT OR IGNORE INTO release_history(version, released_at, title, description, affected_areas)
+               VALUES ('0.11.1', '2026-09-29T14:00:00+03:30', 'نسخهٔ تجمیعی تنظیمات و ورود اکسل',
+                       'تجمیع پاک‌سازی امن اطلاعات با پشتیبان اجباری، قالب و راهنمای اکسل و اعتبارسنجی کامل پیش از ثبت؛ حفظ تاریخچهٔ نسخه‌های قبلی.',
+                       'نسخه، تنظیمات و ورود اکسل')"""
+        )
+        db.execute(
+            """INSERT OR IGNORE INTO release_history(version, released_at, title, description, affected_areas)
+               VALUES ('0.11.0', '2026-09-29T13:00:00+03:30', 'اعتبارسنجی پیش از ورود اکسل',
+                       'بررسی همهٔ ردیف‌ها پیش از ثبت، اعلام خطا با شمارهٔ ردیف و جلوگیری از ورود ناقص یا متداخل.',
+                       'ورود اکسل و تنظیمات')"""
+        )
+        db.execute(
+            """INSERT OR IGNORE INTO release_history(version, released_at, title, description, affected_areas)
+               VALUES ('0.10.0', '2026-09-29T12:00:00+03:30', 'راهنما و قالب ورود اکسل',
+                       'دانلود قالب خالی اکسل همراه با راهنما، نمونه و توضیح سرتیترها در بخش ورود اطلاعات.',
+                       'تنظیمات و ورود اکسل')"""
+        )
+        db.execute(
+            """INSERT OR IGNORE INTO release_history(version, released_at, title, description, affected_areas)
+               VALUES ('0.9.0', '2026-09-29T00:00:00+03:30', 'پاک‌سازی اطلاعات برای ورود مجدد',
+                       'پاک کردن اطلاعات مالی و سوابق ایمپورت از تنظیمات با تأیید کاربر و پشتیبان اجباری؛ حفظ حساب‌ها و دسته‌بندی‌ها.',
+                       'تنظیمات، اطلاعات مالی و ورود اکسل')"""
+        )
+        db.execute(
+            """INSERT OR IGNORE INTO release_history(version, released_at, title, description, affected_areas)
                VALUES ('0.8.0', '2026-09-28T00:00:00+03:30', 'بازپرداخت و ویرایش کامل تعهد',
                        'اصلاح مدیریت داشبورد، دریافت بازپرداخت، ویرایش همهٔ اقساط با حفظ پرداخت و ارتقای امن اطلاعات.',
                        'داشبورد، تعهدات، اقساط، دیتابیس و اجرای ویندوز')"""
@@ -302,9 +345,12 @@ def clear_financial_data() -> Path:
     """Back up under a write lock, then atomically clear operational data."""
     with connection(write=True) as db:
         backup_path = create_database_backup(DATA_DIR / "backups")
-        for table in ("payments", "installments", "commitments", "transactions",
-                      "budget_items", "imported_rows", "import_runs", "audit_logs"):
+        tables = ("payments", "installments", "commitments", "transactions", "budget_items", "imported_rows", "import_runs")
+        counts = {table: db.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0] for table in tables}
+        db.execute("UPDATE audit_logs SET resource_type = 'archived_' || resource_type WHERE resource_type NOT LIKE 'archived_%'")
+        for table in tables:
             db.execute(f"DELETE FROM {table}")
+        write_audit_log(db, "delete", "system", 0, json.dumps({"before": counts, "backup_path": str(backup_path)}, ensure_ascii=False))
     return backup_path
 
 

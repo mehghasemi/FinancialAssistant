@@ -10,7 +10,7 @@ import unittest
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
-from openpyxl import Workbook
+from openpyxl import Workbook, load_workbook
 
 from app import database, main
 
@@ -40,8 +40,72 @@ class ApiTests(unittest.TestCase):
     def rows(self, identifier):
         return self.client.get("/api/installments", params={"commitment_id": identifier}).json()
 
+    def test_commitment_summary_and_details_keep_same_title_loans_separate(self):
+        first = self.create()
+        second = self.create()
+        rows = self.rows(first)
+        for row, amount in ((rows[0], 1000), (rows[1], 400)):
+            response = self.client.post('/api/payments', json={
+                'installment_id': row['id'], 'amount': amount, 'paid_on': '1405/07/01'})
+            self.assertEqual(response.status_code, 201)
+        summaries = {item['id']: item for item in self.client.get('/api/commitments').json()}
+        self.assertEqual(summaries[first]['paid_installment_count'], 1)
+        self.assertEqual(summaries[first]['paid_amount'], 1400)
+        self.assertEqual(summaries[first]['planned_amount'], 3000)
+        self.assertEqual(summaries[second]['paid_installment_count'], 0)
+        self.assertEqual(summaries[second]['paid_amount'], 0)
+        self.assertEqual(len(self.rows(first)), 3)
+        self.assertTrue(all(row['commitment_id'] == first for row in self.rows(first)))
+        self.assertTrue(all(row['paid_amount'] == 0 for row in self.rows(second)))
+
     def edit(self, identifier, **changes):
         return self.client.patch(f"/api/commitments/{identifier}", json={"title": "وام جدید", "kind": "وام", **changes})
+
+    def test_summary_counts_overdue_partial_payments_and_variable_amounts(self):
+        identifier = self.create(first_due_date='1400/01/01', repayment_amount=3100)
+        rows = self.rows(identifier)
+        for row, amount in ((rows[0], 1000), (rows[1], 400)):
+            response = self.client.post('/api/payments', json={
+                'installment_id': row['id'], 'amount': amount, 'paid_on': '1400/01/01'})
+            self.assertEqual(response.status_code, 201)
+        item = next(item for item in self.client.get('/api/commitments').json() if item['id'] == identifier)
+        self.assertEqual(item['overdue_installment_count'], 2)
+        self.assertEqual(item['paid_installment_count'], 1)
+        self.assertEqual(item['installment_amount_variants'], 2)
+        self.assertEqual(item['planned_amount'] - item['paid_amount'], 1700)
+        self.assertLess(item['first_due_date'], item['last_due_date'])
+
+    def test_installment_edit_adjusts_repayment_and_audits_before_after(self):
+        identifier = self.create(repayment_amount=3000)
+        rows = self.rows(identifier)
+        payload = {'due_date': rows[0]['due_date'], 'amount': 1300, 'note': 'اصلاح'}
+        response = self.client.patch(f"/api/installments/{rows[0]['id']}", json=payload)
+        self.assertEqual(response.status_code, 200, response.text)
+        after = self.rows(identifier)
+        self.assertEqual(after[1:], rows[1:])
+        item = self.client.get('/api/commitments').json()[0]
+        self.assertEqual(item['repayment_amount'], 3300)
+        logs = self.client.get('/api/audit-logs', params={'resource_type': 'installment', 'resource_id': rows[0]['id']}).json()['items']
+        self.assertEqual(logs[0]['details']['before']['amount'], 1000)
+        self.assertEqual(logs[0]['details']['after']['amount'], 1300)
+        payload['amount'] = 800
+        self.assertEqual(self.client.patch(f"/api/installments/{rows[0]['id']}", json=payload).status_code, 200)
+        self.assertEqual(self.client.get('/api/commitments').json()[0]['repayment_amount'], 2800)
+        payload['note'] = 'فقط یادداشت'
+        self.assertEqual(self.client.patch(f"/api/installments/{rows[0]['id']}", json=payload).status_code, 200)
+        self.assertEqual(self.client.get('/api/commitments').json()[0]['repayment_amount'], 2800)
+
+    def test_audit_pagination_and_settings_details(self):
+        self.create()
+        payload = self.client.get('/api/settings').json()
+        payload['backup_enabled'] = False
+        self.assertEqual(self.client.put('/api/settings', json=payload).status_code, 200)
+        first = self.client.get('/api/audit-logs?limit=1').json()
+        self.assertEqual(first['items'][0]['resource_type'], 'settings')
+        self.assertEqual(first['items'][0]['details']['after']['backup_enabled'], 'false')
+        self.assertIsNotNone(first['next_cursor'])
+        second = self.client.get('/api/audit-logs', params={'before_id': first['next_cursor']}).json()
+        self.assertTrue(all(item['id'] < first['next_cursor'] for item in second['items']))
 
     def test_paid_schedule_protected_and_metadata_edit_preserves_history(self):
         identifier = self.create()
@@ -165,8 +229,10 @@ class ApiTests(unittest.TestCase):
         with closing(sqlite3.connect(response.json()["backup_path"])) as backup:
             self.assertEqual(backup.execute("SELECT count(*) FROM commitments").fetchone()[0], 1)
         with database.connection() as db:
-            for table in ("payments", "installments", "commitments", "transactions", "budget_items", "imported_rows", "import_runs", "audit_logs"):
+            for table in ("payments", "installments", "commitments", "transactions", "budget_items", "imported_rows", "import_runs"):
                 self.assertEqual(db.execute(f"SELECT count(*) FROM {table}").fetchone()[0], 0, table)
+            self.assertTrue(db.execute("SELECT 1 FROM audit_logs WHERE resource_type = 'archived_commitment'").fetchone())
+            self.assertTrue(db.execute("SELECT 1 FROM audit_logs WHERE resource_type = 'system'").fetchone())
             self.assertTrue(db.execute("SELECT 1 FROM data_migrations").fetchone())
             self.assertEqual(db.execute("PRAGMA foreign_key_check").fetchall(), [])
         self.assertEqual(self.client.get("/api/settings").json(), settings)
@@ -203,6 +269,86 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 500)
         self.assertNotIn("private database detail", response.text)
         self.assertEqual(response.headers["X-Error-Id"], response.json()["error_id"])
+
+    def test_downloaded_template_is_empty_and_can_be_imported_after_filling(self):
+        url = '/static/templates/installments-template.xlsx'
+        self.assertIn(url, self.client.get('/').text)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        workbook = load_workbook(BytesIO(response.content))
+        self.addCleanup(workbook.close)
+        sheet = workbook['Sheet4']
+        self.assertEqual([cell.value for cell in sheet[1]],
+                         ['عنوان', 'نوع', 'مبلغ کل', 'تاریخ سررسید', 'وضعیت', 'مبلغ'])
+        self.assertFalse(any(cell.value is not None for row in sheet.iter_rows(min_row=2) for cell in row))
+        self.assertIn('راهنما و نمونه', workbook.sheetnames)
+        empty = self.client.post('/api/imports/sheet4', files={'file': ('template.xlsx', response.content)})
+        self.assertEqual(empty.status_code, 422)
+        self.assertEqual(self.client.get('/api/commitments').json(), [])
+        sheet.append(['تعهد قالب', 'وام', 20000000, '1405/07/01', 'پرداخت شده', 11000000])
+        sheet.append(['تعهد قالب', 'وام', 20000000, '1405/08/01', 'پرداخت نشده', 11000000])
+        output = BytesIO()
+        workbook.save(output)
+        result = self.client.post('/api/imports/sheet4', files={'file': ('template.xlsx', output.getvalue())})
+        self.assertEqual(result.status_code, 200, result.text)
+        self.assertEqual(result.json()['installments'], 2)
+        self.assertEqual(result.json()['payments'], 1)
+        records = self.client.get('/api/commitments').json()
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0]['repayment_amount'], 2200000)
+        self.assertEqual(records[0]['paid_amount'], 1100000)
+
+    def upload_rows(self, rows, headers=None):
+        workbook = Workbook()
+        sheet = workbook.active
+        sheet.title = 'Sheet4'
+        sheet.append(headers or ['عنوان', 'نوع', 'مبلغ کل', 'تاریخ سررسید', 'وضعیت', 'مبلغ'])
+        for row in rows:
+            sheet.append(row)
+        output = BytesIO()
+        workbook.save(output)
+        workbook.close()
+        return self.client.post('/api/imports/sheet4', files={'file': ('test.xlsx', output.getvalue())})
+
+    def test_excel_validation_reports_rows_without_partial_writes(self):
+        valid = ['وام', 'وام', 20000, '1405/07/01', 'پرداخت نشده', 10000]
+        response = self.upload_rows([valid, ['', 'وام', -10, '1405/13/01', 'نامعلوم', 11]])
+        self.assertEqual(response.status_code, 422)
+        message = response.json()['detail']
+        for expected in ['هیچ اطلاعاتی ثبت نشد', 'ردیف 3', 'عنوان', 'مبلغ کل', 'وضعیت', 'تاریخ سررسید']:
+            self.assertIn(expected, message)
+        self.assertEqual(self.client.get('/api/commitments').json(), [])
+
+    def test_excel_rejects_invalid_numbers_formulas_duplicates_and_headers(self):
+        valid = ['وام', 'وام', 20000, '1405/07/01', 'پرداخت نشده', 10000]
+        for amount in ['NaN', 'Infinity', 10.5, 0, -10, 9, 11, True, '=10000', '9999999999999999999999990']:
+            with self.subTest(amount=amount):
+                self.assertEqual(self.upload_rows([valid[:-1] + [amount]]).status_code, 422)
+        response = self.upload_rows([valid, valid])
+        self.assertEqual(response.status_code, 422)
+        self.assertIn('قسط تکراری', response.json()['detail'])
+        response = self.upload_rows([valid], ['عنوان', 'عنوان', 'مبلغ کل', 'تاریخ سررسید', 'وضعیت', 'مبلغ'])
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(self.client.get('/api/commitments').json(), [])
+
+    def test_excel_existing_collision_rejected_and_identical_retry_allowed(self):
+        valid = ['وام', 'وام', 20000, '1405/07/01', 'پرداخت نشده', 10000]
+        self.assertEqual(self.upload_rows([valid]).status_code, 200)
+        before = self.client.get('/api/commitments').json()
+        self.assertEqual(self.upload_rows([valid]).status_code, 200)
+        changed = valid.copy()
+        changed[3] = '1405/08/01'
+        response = self.upload_rows([changed])
+        self.assertEqual(response.status_code, 422)
+        self.assertIn('ردیف 2', response.json()['detail'])
+        self.assertEqual(self.client.get('/api/commitments').json(), before)
+
+    def test_excel_ignores_empty_rows_but_rejects_incomplete_rows(self):
+        valid = ['وام', '', 20000, '1405/07/01', 'پرداخت نشده', 10000]
+        self.assertEqual(self.upload_rows([[None] * 6, valid]).status_code, 200)
+        response = self.upload_rows([[None, None, None, '1405/07/01', None, None]])
+        self.assertEqual(response.status_code, 422)
+        self.assertIn('ردیف 2', response.json()['detail'])
 
     def test_excel_upload_remains_available_without_legacy_folder(self):
         workbook = Workbook()

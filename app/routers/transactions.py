@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Query
@@ -44,7 +45,7 @@ def create_transaction(payload: TransactionInput):
                VALUES (?, ?, ?, ?, ?, ?)""",
             (payload.transaction_type, payload.amount, payload.occurred_on.isoformat(), payload.category_id, payload.account_id, payload.note.strip()),
         )
-        write_audit_log(db, "create", "transaction", cursor.lastrowid, payload.transaction_type)
+        write_audit_log(db, "create", "transaction", cursor.lastrowid, json.dumps({"after": payload.model_dump(mode="json")}, ensure_ascii=False))
         return {"id": cursor.lastrowid}
 
 

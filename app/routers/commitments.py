@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import date
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException
@@ -39,7 +40,10 @@ def commitment_list():
                 """SELECT c.id, c.unique_code, c.title, c.kind, c.total_amount, c.repayment_amount, c.interval_months, COUNT(i.id) AS installment_count,
                           COALESCE(SUM(i.amount), 0) AS planned_amount,
                           COALESCE(SUM(p.payment_amount), 0) AS paid_amount,
+                          SUM(CASE WHEN i.id IS NOT NULL AND COALESCE(p.payment_amount, 0) >= i.amount THEN 1 ELSE 0 END) AS paid_installment_count,
                           MIN(CASE WHEN i.amount > COALESCE(p.payment_amount, 0) THEN i.due_date END) AS next_unpaid_due_date,
+                          SUM(CASE WHEN i.amount > COALESCE(p.payment_amount, 0) AND i.due_date < ? THEN 1 ELSE 0 END) AS overdue_installment_count,
+                          COUNT(DISTINCT i.amount) AS installment_amount_variants,
                           MIN(i.due_date) AS first_due_date,
                           MAX(i.due_date) AS last_due_date,
                           (SELECT amount FROM installments WHERE commitment_id = c.id ORDER BY due_date, id LIMIT 1) AS installment_amount,
@@ -51,7 +55,7 @@ def commitment_list():
                        FROM payments GROUP BY installment_id
                    ) p ON p.installment_id = i.id
                    GROUP BY c.id
-                   ORDER BY c.id DESC"""
+                   ORDER BY c.id DESC""", (date.today().isoformat(),)
             ).fetchall()
         ]
 

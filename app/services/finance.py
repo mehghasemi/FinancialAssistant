@@ -50,7 +50,7 @@ def create_commitment(payload: CommitmentInput):
             "INSERT INTO installments(commitment_id, due_date, amount) VALUES (?, ?, ?)",
             ((commitment_id, due.isoformat(), amount) for due, amount in zip(due_dates, amounts)),
         )
-        write_audit_log(db, "create", "commitment", commitment_id, payload.title)
+        write_audit_log(db, "create", "commitment", commitment_id, json.dumps({"after": payload.model_dump(mode="json"), "unique_code": unique_code}, ensure_ascii=False))
     return {"id": commitment_id, "installment_count": payload.installment_count, "unique_code": unique_code}
 
 
@@ -177,9 +177,16 @@ def update_installment(installment_id: int, payload: InstallmentUpdate):
         repayment_amount = db.execute(
             "SELECT repayment_amount FROM commitments WHERE id = ?", (existing["commitment_id"],)
         ).fetchone()[0]
-        new_total = planned_amount - existing["amount"] + payload.amount
-        if repayment_amount is not None and new_total != repayment_amount:
-            raise FinanceError(422, "جمع اقساط باید برابر با مبلغ بازپرداخت تعهد باقی بماند.")
+        difference = payload.amount - existing["amount"]
+        if difference:
+            new_repayment = (repayment_amount if repayment_amount is not None else planned_amount) + difference
+            db.execute("UPDATE commitments SET repayment_amount = ? WHERE id = ?",
+                       (new_repayment, existing["commitment_id"]))
+            write_audit_log(db, "update", "commitment", existing["commitment_id"], json.dumps({
+                "installment_id": installment_id,
+                "before": {"repayment_amount": repayment_amount},
+                "after": {"repayment_amount": new_repayment},
+            }, ensure_ascii=False))
         db.execute(
             "UPDATE installments SET due_date = ?, amount = ?, note = ? WHERE id = ?",
             (payload.due_date.isoformat(), payload.amount, payload.note, installment_id),
@@ -206,7 +213,7 @@ def create_payment(payload: PaymentInput):
             (payload.installment_id, payload.amount, payload.paid_on.isoformat(), payload.account_id, payload.note.strip()),
         )
         write_audit_log(db, "create", "payment", cursor.lastrowid, json.dumps({
-            "installment_id": payload.installment_id, "amount": payload.amount, "paid_on": payload.paid_on.isoformat()
+            "installment_id": payload.installment_id, "after": payload.model_dump(mode="json")
         }, ensure_ascii=False))
         return {"id": cursor.lastrowid}
 

@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>همراه مالی</title>
-    <link rel="stylesheet" href="/static/styles.css?v=0.8.0" />
+    <link rel="stylesheet" href="/static/styles.css?v=0.14.0" />
   </head>
   <body>
     <div class="shell">
@@ -15,6 +15,7 @@
           <button class="nav-link" data-page="transactions">درآمد و هزینه</button>
           <button class="nav-link" data-page="commitmentManagement">مدیریت تعهدات</button>
           <button class="nav-link" data-page="installmentManagement">مدیریت اقساط</button>
+          <button class="nav-link" data-page="auditLog">رویدادنگاری</button>
           <button class="nav-link" data-page="settings">تنظیمات</button>
           <button class="nav-link" data-page="help">راهنمای سیستم</button>
           <button class="nav-link" data-page="releases">تاریخچهٔ تغییرات</button>
@@ -56,7 +57,16 @@
 
         <section id="commitmentManagement" class="page">
           <header><div><h1>مدیریت تعهدات</h1><p>تعهدات جدید تعریف کنید یا تعهدات موجود را مدیریت کنید.</p></div></header>
-          <article class="panel commitment-grid-panel"><div class="panel-title"><h2>فهرست تعهدات موجود</h2><button class="primary" id="createNewCommitment">ایجاد تعهد جدید</button><span>برای مرتب‌سازی روی ستون کلیک کنید؛ دکمهٔ ویرایش برای تغییر تمام فیلدهای تعهد.</span></div><div class="commitment-filters" id="commitmentGridFilters"><div class="field"><label>عنوان تعهد</label><details class="facet" data-filter="title"><summary>همه عنوان‌ها</summary><div class="facet-options"></div></details></div><div class="field"><label>نوع تعهد</label><details class="facet" data-filter="kind"><summary>همه انواع</summary><div class="facet-options"></div></details></div><div class="field"><label>سال سررسید</label><details class="facet" data-filter="year"><summary>همه سال‌ها</summary><div class="facet-options"></div></details></div><div class="field"><label>ماه سررسید</label><details class="facet" data-filter="month"><summary>همه ماه‌ها</summary><div class="facet-options"></div></details></div><div class="field"><label>وضعیت تسویه</label><details class="facet" data-filter="status"><summary>همه وضعیت‌ها</summary><div class="facet-options"></div></details></div><button class="quiet" id="resetCommitmentFilters" type="button">بازنشانی فیلترها</button></div><div class="table-wrap"><table><thead><tr><th data-sort="unique_code" tabindex="0" aria-sort="none">کد یکتا</th><th data-sort="title" tabindex="0" aria-sort="none">عنوان</th><th data-sort="kind" tabindex="0" aria-sort="none">نوع</th><th data-sort="total_amount" tabindex="0" aria-sort="none">مبلغ کل</th><th data-sort="installment_count" tabindex="0" aria-sort="none">تعداد اقساط</th><th data-sort="planned_amount" tabindex="0" aria-sort="none">جمع اقساط</th><th data-sort="paid_amount" tabindex="0" aria-sort="none">پرداخت‌شده</th><th data-sort="status" tabindex="0" aria-sort="none">وضعیت</th><th data-sort="distance_days" tabindex="0" aria-sort="none">تا سررسید</th><th>عملیات</th></tr></thead><tbody id="commitmentRows"></tbody></table></div></article>
+          <article class="panel commitment-grid-panel"><div class="panel-title"><h2>فهرست تعهدات موجود</h2><button class="primary" id="createNewCommitment">ایجاد تعهد جدید</button><span>هر ردیف یک تعهد مستقل است؛ برای دیدن اقساط، جزئیات را باز کنید.</span></div>
+          <div class="commitment-filters" id="commitmentGridFilters">
+            <div class="field"><label for="commitmentSearch">جست‌وجوی عنوان یا کد تعهد</label><input id="commitmentSearch" type="search" /></div>
+            <div class="field"><label>نوع تعهد</label><details class="facet" data-filter="kind"><summary>همهٔ انواع</summary><div class="facet-options"></div></details></div>
+            <div class="field"><label>وضعیت تعهد</label><details class="facet" data-filter="status"><summary>همهٔ وضعیت‌ها</summary><div class="facet-options"></div></details></div>
+            <div class="field"><label>سال شروع</label><details class="facet" data-filter="start_year"><summary>همه</summary><div class="facet-options"></div></details></div>
+            <div class="field"><label>سال پایان</label><details class="facet" data-filter="end_year"><summary>همه</summary><div class="facet-options"></div></details></div>
+            <div class="field"><label>قسط معوق</label><details class="facet" data-filter="overdue"><summary>همه</summary><div class="facet-options"></div></details></div>
+            <button class="quiet" id="resetCommitmentFilters" type="button">بازنشانی فیلترها</button>
+          </div><div class="table-wrap"><table><thead><tr><th data-sort="unique_code" tabindex="0" aria-sort="none">کد یکتای تعهد</th><th data-sort="kind" tabindex="0" aria-sort="none">نوع</th><th data-sort="title" tabindex="0" aria-sort="none">عنوان</th><th data-sort="first_due_date" tabindex="0" aria-sort="none">تاریخ شروع</th><th data-sort="last_due_date" tabindex="0" aria-sort="none">تاریخ پایان</th><th data-sort="total_amount" tabindex="0" aria-sort="none">مبلغ اصل تسهیلات</th><th data-sort="installment_amount" tabindex="0" aria-sort="none">مبلغ هر قسط</th><th data-sort="installment_count" tabindex="0" aria-sort="none">تعداد اقساط</th><th data-sort="remaining_amount" tabindex="0" aria-sort="none">مبلغ باقی‌مانده</th><th data-sort="remaining_installment_count" tabindex="0" aria-sort="none">اقساط باقی‌مانده</th><th data-sort="status" tabindex="0" aria-sort="none">وضعیت</th><th data-sort="overdue_installment_count" tabindex="0" aria-sort="none">قسط معوق</th><th>عملیات</th></tr></thead><tbody id="commitmentRows"></tbody></table></div></article>
           <div class="columns definition-columns">
             <form id="commitmentForm" class="panel form-panel">
               <h2>اطلاعات تعهد جدید</h2>
@@ -78,16 +88,42 @@
         </section>
 
         <section id="installmentManagement" class="page">
+          <article id="commitmentDetailSummary" class="panel" hidden><button class="quiet" data-page="commitmentManagement">بازگشت به فهرست تعهدات</button><p id="commitmentDetailValues"></p></article>
           <header><div><h1>مدیریت اقساط و پرداخت‌ها</h1><p>اقساط را فیلتر کنید و پرداخت همان ردیف را مستقیماً ثبت کنید.</p></div><button class="primary" data-page="commitmentManagement">ایجاد تعهد جدید</button></header>
           <article class="panel"><div class="grid-filters"><div class="field"><label for="installmentMonth">ماه سررسید</label><select id="installmentMonth"></select></div><div class="field"><label for="installmentStatus">وضعیت</label><select id="installmentStatus"><option value="">همهٔ وضعیت‌ها</option></select></div><div class="field"><label for="installmentCommitment">تعهد</label><select id="installmentCommitment"><option value="">همهٔ تعهدات</option></select></div><div class="field"><label for="installmentSearch">جست‌وجوی عنوان</label><input id="installmentSearch" maxlength="120" placeholder="مثلاً رسالت" /></div><button class="quiet" id="clearInstallmentFilters" type="button">پاک‌کردن فیلترها</button></div><div class="table-wrap"><table><thead><tr><th>تعهد</th><th>سررسید</th><th>مبلغ</th><th>پرداخت</th><th>مانده</th><th>وضعیت</th><th>عملیات</th></tr></thead><tbody id="installmentRows"></tbody></table></div></article>
 
         </section>
+        <section id="auditLog" class="page">
+          <header><div><h1>رویدادنگاری تغییرات</h1><p>رویدادهای ثبت‌شده با تاریخ، شناسه و جزئیات قبل و بعد؛ اطلاعات ثبت‌نشدهٔ گذشته قابل بازسازی نیست.</p></div></header>
+          <article class="panel"><div class="grid-filters">
+            <div class="field"><label for="auditType">بخش</label><select id="auditType"><option value="">همه</option><option value="commitment">تعهد</option><option value="installment">قسط</option><option value="payment">پرداخت</option><option value="transaction">درآمد و هزینه</option><option value="settings">تنظیمات</option><option value="system">سیستم</option></select></div>
+            <div class="field"><label for="auditResourceId">شناسهٔ رکورد</label><input id="auditResourceId" type="number" min="0" /></div>
+            <button id="auditRefresh" class="quiet">نمایش رویدادها</button>
+          </div><p id="auditMessage" role="status"></p><div id="auditEvents" class="list"></div><button id="auditMore" class="quiet" hidden>رویدادهای قدیمی‌تر</button></article>
+        </section>
         <section id="settings" class="page">
           <header><div><h1>تنظیمات سیستم</h1><p>محل و رفتار پشتیبان‌گیری دیتابیس را تعیین کنید.</p></div></header>
-          <article class="panel settings-panel"><form id="settingsForm" class="form-panel"><h2>پشتیبان‌گیری</h2><label class="toggle-field"><input id="backupEnabled" type="checkbox" /> پشتیبان خودکار هنگام شروع، هر ۱۵ دقیقه و هنگام خروج</label><div class="field"><label for="backupDirectory">مسیر ذخیرهٔ پشتیبان‌ها</label><input id="backupDirectory" maxlength="500" required /></div><div class="settings-actions"><button class="primary" type="submit">ذخیرهٔ تنظیمات</button><button class="quiet" id="manualBackup" type="button">تهیهٔ پشتیبان اکنون</button></div><p class="form-message" id="settingsMessage" role="status" aria-live="polite"></p></form></article><article class="panel settings-panel"><h2>ورود داده از اکسل</h2><p class="help-text">فایل اکسل تعهدات (Sheet4) را انتخاب کنید تا تعهدات، اقساط و پرداخت‌ها به‌صورت خودکار ثبت شوند. اجرای دوباره روی همان فایل، رکورد تکراری نمی‌سازد.</p><div class="field"><label for="importSheet4File">فایل اکسل (xlsx)</label><input id="importSheet4File" type="file" accept=".xlsx,.xlsm" /></div><div class="settings-actions"><button class="primary" id="importSheet4Submit" type="button">وارد کردن داده</button></div><p class="form-message" id="importSheet4Message" role="status" aria-live="polite"></p><div id="importSheet4Result" class="list" aria-live="polite"></div></article>
+          <article class="panel settings-panel"><form id="settingsForm" class="form-panel"><h2>پشتیبان‌گیری</h2><label class="toggle-field"><input id="backupEnabled" type="checkbox" /> پشتیبان خودکار هنگام شروع، هر ۱۵ دقیقه و هنگام خروج</label><div class="field"><label for="backupDirectory">مسیر ذخیرهٔ پشتیبان‌ها</label><input id="backupDirectory" maxlength="500" required /></div><div class="settings-actions"><button class="primary" type="submit">ذخیرهٔ تنظیمات</button><button class="quiet" id="manualBackup" type="button">تهیهٔ پشتیبان اکنون</button></div><p class="form-message" id="settingsMessage" role="status" aria-live="polite"></p></form></article><article class="panel settings-panel"><h2>ورود داده از اکسل</h2><p class="help-text">فایل اکسل تعهدات (Sheet4) را انتخاب کنید تا تعهدات، اقساط و پرداخت‌ها به‌صورت خودکار ثبت شوند. اجرای دوباره روی همان فایل، رکورد تکراری نمی‌سازد.</p>
+            <p class="help-text"><a class="quiet" href="/static/templates/installments-template.xlsx" download="installments-template.xlsx">دانلود قالب اکسل</a></p>
+            <details class="help">
+              <summary>راهنمای تکمیل فایل اکسل و سرتیترها</summary>
+              <p>فایل را با پسوند xlsx ذخیره کنید. اطلاعات را از ردیف دوم شیت <b dir="ltr">Sheet4</b> وارد کنید؛ هر ردیف یک قسط است. نام شیت و سرتیترهای ردیف اول را تغییر ندهید. قبل از ثبت، همهٔ ردیف‌ها اعتبارسنجی می‌شوند؛ در صورت خطا هیچ اطلاعاتی ثبت نمی‌شود و شمارهٔ ردیف و علت نمایش داده می‌شود. سلول‌های فرمولی را به مقدار ثابت تبدیل کنید. قالب دانلودی خالی است و شیت «راهنما و نمونه» فقط برای آموزش است و وارد برنامه نمی‌شود.</p>
+              <div class="table-wrap"><table aria-label="سرتیترهای قالب اکسل"><thead><tr><th scope="col">سرتیتر</th><th scope="col">اطلاعات موردنیاز</th></tr></thead><tbody>
+                <tr><td>عنوان</td><td>نام تعهد؛ مثلاً وام بانک</td></tr>
+                <tr><td>نوع</td><td>وام، بدهی یا خرید اقساطی؛ اختیاری و در صورت خالی بودن «سایر»</td></tr>
+                <tr><td>مبلغ کل</td><td>مبلغ کل تعهد به ریال؛ در همهٔ اقساط همان تعهد تکرار شود</td></tr>
+                <tr><td>تاریخ سررسید</td><td>تاریخ شمسی به صورت متن؛ مثلاً <span dir="ltr">1405/07/01</span></td></tr>
+                <tr><td>وضعیت</td><td>پرداخت شده، تسویه شده یا پرداخت نشده</td></tr>
+                <tr><td>مبلغ</td><td>مبلغ همان قسط به ریال</td></tr>
+              </tbody></table></div>
+              <p>مبالغ را عددی و مثبت بنویسید؛ برنامه ریال را به تومان تبدیل می‌کند. برای تبدیل دقیق، مبلغ مضرب ۱۰ باشد. مبلغ بازپرداخت از جمع اقساط محاسبه می‌شود.</p>
+              <p>عنوان، نوع و مبلغ کل یکسان، یک تعهد محسوب می‌شوند؛ برای دو وام مستقل عنوان متفاوت بگذارید.</p>
+              <p>«پرداخت شده» یا «تسویه شده» کل مبلغ قسط را پرداخت‌شده ثبت می‌کند و تاریخ پرداخت برابر سررسید است. پرداخت جزئی و تاریخ پرداخت جداگانه در این قالب پشتیبانی نمی‌شوند.</p>
+            </details>
+            <div class="field"><label for="importSheet4File">فایل اکسل (xlsx)</label><input id="importSheet4File" type="file" accept=".xlsx,.xlsm" /></div><div class="settings-actions"><button class="primary" id="importSheet4Submit" type="button">وارد کردن داده</button></div><p class="form-message" id="importSheet4Message" role="status" aria-live="polite"></p><div id="importSheet4Result" class="list" aria-live="polite"></div></article>
           <article class="panel settings-panel">
             <h2>خالی کردن اطلاعات مالی</h2>
-            <p class="help-text">همهٔ تراکنش‌ها، تعهدات، اقساط، پرداخت‌ها، بودجه‌ها و سوابق ورود داده و تغییرات حذف می‌شوند تا بتوانید دوباره ایمپورت کنید. تنظیمات، حساب‌ها و دسته‌بندی‌ها حفظ می‌شوند. پیش از حذف، یک پشتیبان در پوشهٔ backups کنار دیتابیس ذخیره می‌شود.</p>
+            <p class="help-text">همهٔ تراکنش‌ها، تعهدات، اقساط، پرداخت‌ها، بودجه‌ها و سوابق ورود داده حذف می‌شوند؛ رویدادهای تغییرات برای پیگیری حفظ می‌شوند تا بتوانید دوباره ایمپورت کنید. تنظیمات، حساب‌ها و دسته‌بندی‌ها حفظ می‌شوند. پیش از حذف، یک پشتیبان در پوشهٔ backups کنار دیتابیس ذخیره می‌شود.</p>
             <button class="quiet clear-data-button" id="clearFinancialData" type="button">پاک کردن همهٔ اطلاعات مالی</button>
             <p class="form-message" id="clearDataMessage" role="status" aria-live="polite"></p>
           </article>
@@ -100,6 +136,6 @@
       </main>
     </div>
     <template id="emptyRow"><tr><td colspan="6" class="empty-cell">هنوز داده‌ای ثبت نشده است.</td></tr></template>
-    <script src="/static/app.js?v=0.8.0"></script>
+    <script src="/static/app.js?v=0.14.0"></script>
   </body>
 </html>

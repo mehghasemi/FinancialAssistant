@@ -22,3 +22,5 @@
 - جزئیات معماری: `docs/architecture.md`؛ قراردادها: `docs/api.md`؛ تاریخچه: `CHANGELOG.md`. هنگام اختلاف، کد اجرایی مرجع است.
 
 قواعد ویرایش امن و ارتقای داده در `docs/architecture.md` و روش بازیابی در `docs/recovery.md` هستند.
+
+- رویدادنگاری: API در app/routers/settings.py، ثبت در سرویس مالی و مسیرهای تراکنش، تنظیمات و ورود اکسل؛ نمایش در بخش auditLog رابط. بررسی: api و all برای تغییر ثبت داده.
