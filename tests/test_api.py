@@ -107,6 +107,94 @@ class ApiTests(unittest.TestCase):
         second = self.client.get('/api/audit-logs', params={'before_id': first['next_cursor']}).json()
         self.assertTrue(all(item['id'] < first['next_cursor'] for item in second['items']))
 
+    def test_delete_commitment_requires_confirmation_and_deletes_only_its_children(self):
+        identifier = self.create()
+        other = self.create()
+        row = self.rows(identifier)[0]
+        self.client.post('/api/payments', json={'installment_id': row['id'], 'amount': 100, 'paid_on': '1405/07/01'})
+        self.assertEqual(self.client.delete(f'/api/commitments/{identifier}').status_code, 422)
+        response = self.client.delete(f'/api/commitments/{identifier}?confirm=true')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['deleted_installments'], 3)
+        self.assertEqual(response.json()['deleted_payments'], 1)
+        self.assertEqual(self.rows(identifier), [])
+        self.assertEqual(len(self.rows(other)), 3)
+        with database.connection() as db:
+            self.assertEqual(db.execute('PRAGMA foreign_key_check').fetchall(), [])
+        events = self.client.get('/api/audit-logs?resource_type=commitment').json()['items']
+        self.assertEqual(events[0]['action'], 'delete')
+        self.assertEqual(events[0]['details']['before']['id'], identifier)
+        self.assertEqual(self.client.delete(f'/api/commitments/{identifier}?confirm=true').status_code, 404)
+
+    def test_dashboard_uses_due_month_and_includes_partial_overdue(self):
+        from datetime import date
+        from app.routers import dashboard as dashboard_router
+        identifier = self.create(first_due_date='1405/07/01', interval_months=1)
+        rows = self.rows(identifier)
+        self.client.post('/api/payments', json={'installment_id': rows[0]['id'], 'amount': 400, 'paid_on': '1405/08/01'})
+        self.client.post('/api/payments', json={'installment_id': rows[1]['id'], 'amount': 300, 'paid_on': '1405/07/01'})
+        with patch.object(dashboard_router, 'date') as mock_date:
+            mock_date.today.return_value = date(2026, 9, 29)
+            data = self.client.get('/api/dashboard?month=1405-07').json()
+        self.assertEqual(data['paid_commitments'], 400)
+        self.assertEqual(data['planned_commitments'], 1000)
+        self.assertEqual(data['remaining_commitments'], 600)
+        self.assertEqual(data['overdue_commitments'], 600)
+        self.assertEqual(len(data['upcoming']), 1)
+        self.assertGreater(data['upcoming'][0]['days_overdue'], 0)
+        self.assertEqual(data['current_month'], '1405-07')
+        self.assertEqual(len(data['current_installments']), 1)
+        self.assertEqual(self.client.get('/api/commitments').json()[0]['repayment_amount'], 3000)
+
+    def test_dashboard_action_windows_cross_month_and_exclude_paid(self):
+        from datetime import date, timedelta
+        import jdatetime
+        from app.routers import dashboard as dashboard_router
+
+        today = date(2026, 9, 22)
+        identifiers = {}
+        for offset in (-1, 0, 1, 7, 8):
+            due = jdatetime.date.fromgregorian(date=today + timedelta(days=offset)).strftime('%Y/%m/%d')
+            identifiers[offset] = self.create(first_due_date=due, installment_count=1)
+        paid_id = self.create(first_due_date='1405/07/01', installment_count=1)
+        paid_row = self.rows(paid_id)[0]
+        self.assertEqual(self.client.post('/api/payments', json={
+            'installment_id': paid_row['id'], 'amount': 1000, 'paid_on': '1405/07/01'
+        }).status_code, 201)
+        partial_row = self.rows(identifiers[7])[0]
+        self.client.post('/api/payments', json={
+            'installment_id': partial_row['id'], 'amount': 400, 'paid_on': '1405/07/01'
+        })
+        with patch.object(dashboard_router, 'date') as mock_date:
+            mock_date.today.return_value = today
+            data = self.client.get('/api/dashboard?month=1405-10').json()
+        self.assertEqual(data['planned_commitments'], 0)
+        self.assertEqual([item['commitment_id'] for item in data['overdue_installments']], [identifiers[-1]])
+        self.assertEqual([item['commitment_id'] for item in data['today_installments']], [identifiers[0]])
+        self.assertEqual([item['commitment_id'] for item in data['next_week_installments']], [identifiers[1], identifiers[7]])
+        self.assertEqual([item['days_overdue'] for item in data['next_week_installments']], [-1, -7])
+        self.assertEqual(data['next_week_installments'][1]['remaining_amount'], 600)
+        self.assertEqual(len(data['upcoming']), 2)
+
+    def test_normalize_mixed_installments_preserves_existing_payments(self):
+        identifier = self.create(installment_amount=2779000, installment_count=12)
+        rows = self.rows(identifier)
+        for row in rows[:3]:
+            self.client.post('/api/payments', json={'installment_id': row['id'], 'amount': 2779000, 'paid_on': '1405/07/01'})
+        with database.connection(write=True) as db:
+            for row in rows[3:]:
+                db.execute('UPDATE installments SET amount=27790000 WHERE id=?', (row['id'],))
+            db.execute('UPDATE commitments SET repayment_amount=258447000 WHERE id=?', (identifier,))
+        response = self.edit(identifier, installment_amount=2779000)
+        self.assertEqual(response.status_code, 200, response.text)
+        after = self.rows(identifier)
+        self.assertTrue(all(row['amount'] == 2779000 for row in after))
+        self.assertEqual([row['paid_amount'] for row in after[:3]], [2779000]*3)
+        self.assertEqual(self.client.get('/api/commitments').json()[0]['repayment_amount'], 33348000)
+        rejected = self.edit(identifier, installment_amount=2700000)
+        self.assertEqual(rejected.status_code, 422)
+        self.assertIn('2,779,000', rejected.json()['detail'])
+
     def test_paid_schedule_protected_and_metadata_edit_preserves_history(self):
         identifier = self.create()
         rows = self.rows(identifier)

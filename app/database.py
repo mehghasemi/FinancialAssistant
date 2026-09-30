@@ -209,7 +209,25 @@ def initialize_database() -> None:
             (str(DATA_DIR / "backups"),),
         )
 
+        db.execute("""INSERT OR IGNORE INTO release_history(version, released_at, title, description, affected_areas)
+                   VALUES ('0.17.0', '2026-09-30T18:00:00+03:30', 'داشبورد فشرده و جمع جدول‌ها',
+                           'کاهش فاصله‌های داشبورد و نمایش جمع نتایج فیلترشده در جدول‌های مالی.', 'رابط کاربری')""")
         accounts = ("حساب اصلی", "کارت بانکی", "نقدی")
+        db.execute("""INSERT OR IGNORE INTO release_history(version, released_at, title, description, affected_areas)
+                   VALUES ('0.16.1', '2026-09-30T16:00:00+03:30', 'اصلاح مبلغ اقساط متفاوت',
+                           'یکسان‌سازی صریح مبلغ اقساط، محاسبهٔ بازپرداخت و خطای دقیق با حفظ پرداخت‌ها.', 'تعهدات')""")
+        db.execute(
+            """INSERT OR IGNORE INTO release_history(version, released_at, title, description, affected_areas)
+               VALUES ('0.16.0', '2026-09-30T12:00:00+03:30', 'داشبورد خلوت و کاربردی',
+                       'سه کارت خلاصه، ظاهر سرمه‌ای و فیروزه‌ای، فهرست یکپارچهٔ معوق و امروز و هفت روز آینده و پیشرفت پرداخت ماه انتخابی.',
+                       'داشبورد و رابط کاربری')"""
+        )
+        db.execute(
+            """INSERT OR IGNORE INTO release_history(version, released_at, title, description, affected_areas)
+               VALUES ('0.15.0', '2026-09-29T18:00:00+03:30', 'مدیریت تعهد و داشبورد سررسید',
+                       'ویرایش یکپارچه، محاسبهٔ بازپرداخت از اقساط، حذف کامل با تأیید و نمایش ماه جاری و معوقات بر مبنای سررسید.',
+                       'تعهدات و داشبورد')"""
+        )
         db.execute(
             """INSERT OR IGNORE INTO release_history(version, released_at, title, description, affected_areas)
                VALUES ('0.14.0', '2026-09-29T17:00:00+03:30', 'ویرایش مستقل قسط و رویدادنگاری',

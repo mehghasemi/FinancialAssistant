@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>همراه مالی</title>
-    <link rel="stylesheet" href="/static/styles.css?v=0.14.0" />
+    <link rel="stylesheet" href="/static/styles.css?v=0.17.0" />
   </head>
   <body>
     <div class="shell">
@@ -23,17 +23,16 @@
       </aside>
       <main>
         <section id="dashboard" class="page active">
-          <header><div><h1>داشبورد مالی</h1><p>نمای ماهانه از پرداخت واقعی و تعهدات برنامه‌ریزی‌شده</p></div><label class="month-filter">ماه شمسی <select id="dashboardMonth"></select></label></header>
-          <details class="help"><summary>؟ راهنمای داشبورد</summary><p>مبالغ «پرداخت واقعی» از رکوردهای پرداخت و تراکنش ثبت‌شده محاسبه می‌شوند. تا زمانی که داده‌ای ثبت نشود، کارت‌ها صفر را نشان می‌دهند.</p></details>
-          <div class="stats">
-            <article><small>درآمد ماه</small><strong id="incomeValue">—</strong></article>
-            <article><small>هزینهٔ ثبت‌شده</small><strong id="expenseValue">—</strong></article>
-            <article><small>ماندهٔ تعهدات ماه</small><strong id="remainingValue">—</strong></article>
-            <article><small>تعهدات معوق</small><strong id="overdueValue">—</strong></article>
+          <header class="dashboard-header"><div><p class="eyebrow">همراه مالی · نمای کلی</p><h1>وضعیت مالی، در یک نگاه</h1><p>خلاصهٔ ماه را ببینید و پرداخت بعدی را پیگیری کنید.</p></div><div class="dashboard-tools"><label class="month-filter">ماه شمسی <select id="dashboardMonth"></select></label><button class="primary" data-page="transactions">＋ ثبت درآمد / هزینه</button></div></header>
+          <p class="dashboard-period" id="dashboardPeriod">خلاصهٔ ماه انتخابی</p>
+          <div class="stats dashboard-stats">
+            <article class="income-card"><span class="stat-symbol" aria-hidden="true">↙</span><small>درآمد ماه</small><strong id="incomeValue">—</strong><p>درآمد ثبت‌شده در ماه انتخابی</p></article>
+            <article class="expense-card"><span class="stat-symbol" aria-hidden="true">↗</span><small>هزینهٔ ثبت‌شده</small><strong id="expenseValue">—</strong><p>هزینهٔ واقعی در ماه انتخابی</p></article>
+            <article class="remaining-card"><span class="stat-symbol" aria-hidden="true">◷</span><small>ماندهٔ اقساط ماه</small><strong id="remainingValue">—</strong><p>بر اساس سررسید ماه انتخابی</p></article>
           </div>
-          <div class="columns">
-            <article class="panel"><div class="panel-title"><h2>تعهدات ماه انتخاب‌شده</h2><span id="commitmentSummary"></span></div><div class="progress"><i id="commitmentProgress"></i></div><div class="split-total"><span>برنامه‌ریزی‌شده: <b id="plannedValue">—</b></span><span>پرداخت واقعی: <b id="paidValue">—</b></span></div></article>
-            <article class="panel"><div class="panel-title"><h2>سررسیدهای نیازمند اقدام</h2><button class="quiet" data-page="installmentManagement">مدیریت</button></div><div id="upcomingList" class="list empty">موردی برای نمایش نیست.</div></article>
+          <div class="dashboard-grid">
+            <article class="panel action-panel"><div class="panel-title"><div><h2>نیازمند اقدام</h2><p class="panel-caption">بر اساس امروز، مستقل از ماه انتخابی</p></div><span class="today-label" id="dashboardToday"></span></div><div class="action-tabs" role="group" aria-label="بازهٔ سررسید"><button type="button" data-action-period="overdue" aria-pressed="true" aria-controls="dashboardActionList">معوق <span id="overdueCount">۰</span></button><button type="button" data-action-period="today" aria-pressed="false" aria-controls="dashboardActionList">امروز <span id="todayCount">۰</span></button><button type="button" data-action-period="week" aria-pressed="false" aria-controls="dashboardActionList">۷ روز آینده <span id="weekCount">۰</span></button></div><p id="dashboardActionSummary" class="panel-caption" role="status"></p><div id="dashboardActionList" class="list" aria-live="polite"></div><button id="dashboardShowAll" class="quiet action-more" type="button" aria-expanded="false" aria-controls="dashboardActionList" hidden>مشاهدهٔ همه</button></article>
+            <article class="panel progress-panel"><div class="panel-title"><h2>پیشرفت پرداخت ماه</h2></div><p id="commitmentSummary" class="panel-caption"></p><strong id="commitmentPercent" class="progress-percent">—</strong><p class="panel-caption" id="commitmentProgressLabel">از مبلغ اقساط ماه انتخابی پرداخت شده</p><div class="progress" role="progressbar" aria-label="پیشرفت پرداخت اقساط ماه انتخابی" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="commitmentProgressTrack"><i id="commitmentProgress"></i></div><div class="progress-totals"><span>مجموع اقساط <b id="plannedValue">—</b></span><span>پرداخت‌شده <b id="paidValue">—</b></span></div><button id="dashboardMonthDetails" type="button" class="quiet">مشاهدهٔ اقساط این ماه ←</button><details class="help dashboard-help"><summary>مبنای محاسبه چیست؟</summary><p>اقساط بر اساس تاریخ سررسید در ماه انتخابی هستند؛ پرداخت‌های همان اقساط، مستقل از تاریخ پرداخت محاسبه می‌شوند. ماندهٔ اقساط، موجودی حساب نیست.</p></details></article>
           </div>
         </section>
 
@@ -73,13 +72,13 @@
               <div class="field"><label for="commitmentTitle">عنوان تعهد</label><input id="commitmentTitle" minlength="2" maxlength="120" placeholder="مثلاً وام بانک رسالت" required /></div>
               <div class="field"><label for="commitmentKind">نوع</label><select id="commitmentKind"><option>وام</option><option>هزینهٔ ثابت</option><option>چک</option><option>بدهی</option></select></div>
               <div class="field"><label for="commitmentTotal">مبلغ وام / اصل تعهد (تومان)</label><input id="commitmentTotal" data-amount inputmode="numeric" placeholder="مثلاً ۱۰۰٬۰۰۰٬۰۰۰" /></div>
-              <div class="field"><label for="commitmentRepayment">مبلغ بازپرداخت (تومان)</label><input id="commitmentRepayment" data-amount inputmode="numeric" required /></div>
+              <div class="field"><label for="commitmentRepayment">مبلغ بازپرداخت (تومان؛ محاسبه از اقساط)</label><input id="commitmentRepayment" data-amount inputmode="numeric" readonly /></div>
               <div class="field"><label for="installmentAmount">مبلغ هر قسط</label><input id="installmentAmount" data-amount inputmode="numeric" required /></div>
               <div class="field"><label for="installmentCount">تعداد اقساط</label><input id="installmentCount" type="number" min="1" max="600" value="12" required /></div>
               <div class="field"><label for="firstDueDate">تاریخ اولین قسط (شمسی)</label><input id="firstDueDate" inputmode="numeric" placeholder="۱۴۰۵/۰۷/۰۱" required /></div>
               <div class="field"><label for="intervalMonths">دورهٔ پرداخت (ماه)</label><input id="intervalMonths" type="number" min="1" max="12" value="1" required /></div>
               <div class="field"><label for="lastDueDate">تاریخ پایان (محاسبه‌شده)</label><input id="lastDueDate" readonly placeholder="پس از پیش‌نمایش نمایش داده می‌شود" /></div>
-              <details class="help"><summary>؟ راهنما</summary><p>مثلاً برای وام ۱۰ قسطه، تعداد را ۱۰ و دوره را ۱ ماه وارد کنید. مبلغ بازپرداخت را وارد کنید؛ مبلغ هر قسط پیشنهاد می‌شود و قابل تغییر است. اختلاف جمع اقساط با بازپرداخت روی قسط آخر اعمال می‌شود. ابتدا پیش‌نمایش را بررسی و سپس ثبت نهایی را تأیید کنید.</p></details>
+              <details class="help"><summary>؟ راهنما</summary><p>مثلاً برای وام ۱۰ قسطه، تعداد را ۱۰ و دوره را ۱ ماه وارد کنید. مبلغ هر قسط و تعداد را وارد کنید؛ بازپرداخت کل از مجموع اقساط محاسبه می‌شود. ابتدا پیش‌نمایش را بررسی و سپس ثبت نهایی را تأیید کنید.</p></details>
               <button class="quiet" id="previewCommitment" type="button">نمایش پیش‌نمایش اقساط</button>
               <button class="primary" id="saveCommitment" type="submit" disabled>تأیید و ثبت تعهد</button><p class="form-message" id="commitmentMessage" role="status" aria-live="polite"></p>
             </form>
@@ -136,6 +135,6 @@
       </main>
     </div>
     <template id="emptyRow"><tr><td colspan="6" class="empty-cell">هنوز داده‌ای ثبت نشده است.</td></tr></template>
-    <script src="/static/app.js?v=0.14.0"></script>
+    <script src="/static/app.js?v=0.17.0"></script>
   </body>
 </html>

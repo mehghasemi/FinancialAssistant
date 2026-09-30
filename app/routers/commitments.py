@@ -60,6 +60,13 @@ def commitment_list():
         ]
 
 
+@router.delete("/commitments/{commitment_id}")
+def delete_commitment(commitment_id: int, confirm: bool = False):
+    if not confirm:
+        raise HTTPException(422, "حذف کامل تعهد نیاز به تأیید دارد.")
+    return finance.delete_commitment(commitment_id)
+
+
 @router.patch("/commitments/{commitment_id}")
 def update_commitment(commitment_id: int, payload: CommitmentUpdate):
     return finance.update_commitment(commitment_id, payload)

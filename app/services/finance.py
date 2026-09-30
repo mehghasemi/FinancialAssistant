@@ -43,7 +43,7 @@ def create_commitment(payload: CommitmentInput):
         unique_code = allocate_unique_code(db)
         cursor = db.execute(
             "INSERT INTO commitments(title, kind, total_amount, repayment_amount, unique_code, interval_months) VALUES (?, ?, ?, ?, ?, ?)",
-            (payload.title.strip(), payload.kind.strip(), payload.total_amount, payload.repayment_amount, unique_code, payload.interval_months),
+            (payload.title.strip(), payload.kind.strip(), payload.total_amount, planned_total, unique_code, payload.interval_months),
         )
         commitment_id = cursor.lastrowid
         db.executemany(
@@ -79,14 +79,15 @@ def update_commitment(commitment_id: int, payload: CommitmentUpdate):
         count = payload.installment_count if payload.installment_count is not None else len(rows)
         planned = sum(row["amount"] for row in rows)
         previous_total = existing["repayment_amount"] or planned
-        total = payload.repayment_amount if payload.repayment_amount is not None else previous_total
+        total = (payload.repayment_amount if payload.repayment_amount is not None else
+                 payload.installment_amount * count if payload.installment_amount is not None else previous_total)
         interval = payload.interval_months if payload.interval_months is not None else existing["interval_months"]
         first = payload.first_due_date or (date.fromisoformat(rows[0]["due_date"]) if rows else None)
         count_changed = count != len(rows)
         money_changed = (count_changed
                          or (payload.repayment_amount is not None and total != previous_total)
                          or (payload.installment_amount is not None and
-                             (not rows or payload.installment_amount != rows[0]["amount"])))
+                             (not rows or any(row["amount"] != payload.installment_amount for row in rows))))
         dates_changed = (count_changed
                          or (payload.interval_months is not None and interval != existing["interval_months"])
                          or (payload.first_due_date is not None and
@@ -114,7 +115,7 @@ def update_commitment(commitment_id: int, payload: CommitmentUpdate):
                 if index >= count and row["id"] in paid:
                     raise FinanceError(422, "کاهش تعداد اقساط باعث حذف قسط دارای پرداخت می‌شود؛ ابتدا برنامه را اصلاح کنید.")
                 if index < count and amounts[index] < paid.get(row["id"], 0):
-                    raise FinanceError(422, "مبلغ جدید یک قسط کمتر از پرداخت ثبت‌شدهٔ آن است.")
+                    raise FinanceError(422, f"قسط {index + 1} با سررسید {format_jalali_date(row['due_date'])}: مبلغ جدید {amounts[index]:,} تومان از پرداخت ثبت‌شدهٔ {paid[row['id']]:,} تومان کمتر است.")
             # Update every surviving installment in place; payment IDs and dates never change.
             for index, (due, value) in enumerate(zip(dates, amounts)):
                 if index < len(rows):
@@ -250,3 +251,19 @@ def delete_payment(payment_id: int):
         }, ensure_ascii=False))
         db.execute("DELETE FROM payments WHERE id = ?", (payment_id,))
     return {"id": payment_id}
+
+
+def delete_commitment(commitment_id: int):
+    with connection(write=True) as db:
+        commitment = db.execute("SELECT * FROM commitments WHERE id = ?", (commitment_id,)).fetchone()
+        if commitment is None:
+            raise FinanceError(404, "تعهد پیدا نشد.")
+        installments = [dict(row) for row in db.execute("SELECT * FROM installments WHERE commitment_id = ?", (commitment_id,))]
+        payments = [dict(row) for row in db.execute("SELECT p.* FROM payments p JOIN installments i ON i.id = p.installment_id WHERE i.commitment_id = ?", (commitment_id,))]
+        write_audit_log(db, "delete", "commitment", commitment_id, json.dumps({
+            "before": dict(commitment), "installments": installments, "payments": payments
+        }, ensure_ascii=False))
+        db.execute("DELETE FROM payments WHERE installment_id IN (SELECT id FROM installments WHERE commitment_id = ?)", (commitment_id,))
+        db.execute("DELETE FROM installments WHERE commitment_id = ?", (commitment_id,))
+        db.execute("DELETE FROM commitments WHERE id = ?", (commitment_id,))
+    return {"id": commitment_id, "deleted_installments": len(installments), "deleted_payments": len(payments)}
