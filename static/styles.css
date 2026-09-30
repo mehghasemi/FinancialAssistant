@@ -115,7 +115,7 @@ main:has(#dashboard.active) { padding:18px 24px; margin-block:0; }
 .dashboard-grid .panel { padding:16px; }
 .dashboard-grid .panel-title { margin-bottom:8px; }
 .dashboard-grid .panel-caption { margin:4px 0 8px; }
-#dashboardActionList { gap:0; max-height:clamp(120px,calc(100dvh - 520px),330px); overflow-y:auto; }
+#dashboardActionList { gap:0; max-height:clamp(120px,calc(100dvh - 550px),330px); overflow-y:auto; }
 .dashboard-action-row { grid-template-columns:minmax(0,1fr) auto auto; padding:9px 0; gap:8px; }
 .dashboard-action-row > button { grid-column:3; }
 .action-more { margin-top:8px; }
