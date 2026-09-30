@@ -18,7 +18,7 @@
 - `api`: فایل `tests/test_api.py`؛ `recovery`: فایل `tests/test_recovery.py`؛ وابستگی تست در `requirements-dev.txt`.
 - `syntax` پایتون فعال و JavaScript را بررسی می‌کند؛ در نبود Node بررسی JavaScript صریحاً skipped می‌شود. همهٔ دامنه‌ها ابتدا بررسی نحوی را اجرا می‌کنند.
 - تست‌ها دیتابیس موقت دارند؛ تست HTTP چرخهٔ عمر برنامه را درون فرایند تست اجرا می‌کند. سرور واقعی یا دیتابیس کاربر اجرا نمی‌شود؛ خطاها exit code غیرصفر دارند.
-- اجرا: فقط `release/FinancialAssistant.exe`؛ `run.ps1` میان‌بر آن است. راهنمای ساخت و توسعه: `docs/development.md`. نسخه‌های تکراری ریشه و `excel-import-ui/` حذف شده‌اند.
+- اجرا: فقط `release/FinancialAssistant.exe`؛ `run.ps1` میان‌بر آن است؛ دادهٔ نسخهٔ اجرایی در `data/` کنار EXE است. راهنمای ساخت و توسعه: `docs/development.md`. نسخه‌های تکراری ریشه و `excel-import-ui/` حذف شده‌اند.
 - جزئیات معماری: `docs/architecture.md`؛ قراردادها: `docs/api.md`؛ تاریخچه: `CHANGELOG.md`. هنگام اختلاف، کد اجرایی مرجع است.
 
 قواعد ویرایش امن و ارتقای داده در `docs/architecture.md` و روش بازیابی در `docs/recovery.md` هستند.

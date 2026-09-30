@@ -10,6 +10,27 @@ from app.services.backups import restore_backup
 
 
 class RecoveryTests(unittest.TestCase):
+    def test_portable_migration_preserves_source_and_existing_destination(self):
+        legacy = self.directory / "legacy"
+        legacy.mkdir()
+        source = legacy / "financial_assistant.db"
+        restore_backup(self.path, source)
+        source_bytes = source.read_bytes()
+        destination_dir = self.directory / "portable" / "data"
+        destination = destination_dir / "financial_assistant.db"
+        with patch.object(database, "PORTABLE_MODE", True), patch.object(database, "LEGACY_DATA_DIR", legacy), patch.object(database, "DATA_DIR", destination_dir), patch.object(database, "DATABASE_PATH", destination):
+            database.initialize_database()
+            self.assertTrue(destination.is_file())
+            self.assertEqual(source.read_bytes(), source_bytes)
+            self.assertEqual(database.get_setting("backup_directory"), str(destination_dir / "backups"))
+            database.set_setting("migration_test", "preserved")
+            database.initialize_database()
+            self.assertEqual(database.get_setting("migration_test"), "preserved")
+            database.set_setting("portable_data_directory", "old-location")
+            database.set_setting("backup_directory", "old-location/backups")
+            database.initialize_database()
+            self.assertEqual(database.get_setting("backup_directory"), str(destination_dir / "backups"))
+
     def setUp(self):
         temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)

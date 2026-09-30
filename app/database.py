@@ -13,8 +13,10 @@ from .migrations import SCHEMA_VERSION, allocate_unique_code, run_migrations
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
 RESOURCE_DIR = Path(getattr(sys, "_MEIPASS", ROOT_DIR))
+PORTABLE_MODE = bool(getattr(sys, "frozen", False)) and not os.getenv("FINANCIAL_ASSISTANT_DATA_DIR")
+LEGACY_DATA_DIR = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "FinancialAssistant"
 if getattr(sys, "frozen", False):
-    default_data_dir = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "FinancialAssistant"
+    default_data_dir = Path(sys.executable).resolve().parent / "data"
 else:
     default_data_dir = ROOT_DIR / "data"
 DATA_DIR = Path(os.getenv("FINANCIAL_ASSISTANT_DATA_DIR", default_data_dir))
@@ -65,6 +67,11 @@ def connection(*, write: bool = False):
 
 
 def initialize_database() -> None:
+    if PORTABLE_MODE and not DATABASE_PATH.exists():
+        legacy = LEGACY_DATA_DIR / "financial_assistant.db"
+        if legacy.is_file():
+            from .services.backups import restore_backup
+            restore_backup(legacy, DATABASE_PATH)
     if DATABASE_PATH.exists():
         with closing(sqlite3.connect(DATABASE_PATH)) as current:
             version = current.execute("PRAGMA user_version").fetchone()[0]
@@ -212,7 +219,17 @@ def initialize_database() -> None:
         db.execute("""INSERT OR IGNORE INTO release_history(version, released_at, title, description, affected_areas)
                    VALUES ('0.17.0', '2026-09-30T18:00:00+03:30', 'داشبورد فشرده و جمع جدول‌ها',
                            'کاهش فاصله‌های داشبورد و نمایش جمع نتایج فیلترشده در جدول‌های مالی.', 'رابط کاربری')""")
+        if PORTABLE_MODE:
+            location = str(DATA_DIR.resolve())
+            previous = db.execute("SELECT setting_value FROM app_settings WHERE setting_key = 'portable_data_directory'").fetchone()
+            if previous is None or previous[0] != location:
+                db.execute("UPDATE app_settings SET setting_value = ? WHERE setting_key = 'backup_directory'", (str(DATA_DIR / "backups"),))
+                db.execute("INSERT OR REPLACE INTO app_settings(setting_key, setting_value) VALUES ('portable_data_directory', ?)", (location,))
+
         accounts = ("حساب اصلی", "کارت بانکی", "نقدی")
+        db.execute("""INSERT OR IGNORE INTO release_history(version, released_at, title, description, affected_areas)
+                   VALUES ('0.18.0', '2026-09-30T20:00:00+03:30', 'اجرای قابل‌حمل با اطلاعات کنار برنامه',
+                           'نگهداری دیتابیس و بکاپ پیش‌فرض در پوشهٔ data کنار EXE و انتقال امن اطلاعات نسخهٔ قبلی با حفظ فایل اصلی.', 'اجرا و نگهداری اطلاعات')""")
         db.execute("""INSERT OR IGNORE INTO release_history(version, released_at, title, description, affected_areas)
                    VALUES ('0.16.1', '2026-09-30T16:00:00+03:30', 'اصلاح مبلغ اقساط متفاوت',
                            'یکسان‌سازی صریح مبلغ اقساط، محاسبهٔ بازپرداخت و خطای دقیق با حفظ پرداخت‌ها.', 'تعهدات')""")
