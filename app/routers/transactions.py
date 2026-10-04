@@ -31,22 +31,55 @@ def categories(transaction_type: Literal["income", "expense"] | None = None):
         return [serialize(row) for row in db.execute(sql, params).fetchall()]
 
 
+def validate_references(db, payload):
+    if payload.category_id:
+        category = db.execute("SELECT transaction_type FROM categories WHERE id = ?", (payload.category_id,)).fetchone()
+        if not category:
+            raise HTTPException(404, "دسته‌بندی پیدا نشد.")
+        if category["transaction_type"] != payload.transaction_type:
+            raise HTTPException(422, "نوع دسته‌بندی با نوع تراکنش هم‌خوان نیست.")
+    if payload.account_id and not db.execute("SELECT 1 FROM accounts WHERE id = ?", (payload.account_id,)).fetchone():
+        raise HTTPException(404, "حساب پیدا نشد.")
+
+
+def transaction_values(payload):
+    return (payload.transaction_type, payload.amount, payload.occurred_on.isoformat(), payload.category_id,
+            payload.account_id, payload.note.strip(), payload.title.strip() or payload.note.strip() or "تراکنش", payload.counterparty.strip(), payload.status)
+
+
 @router.post("/transactions", status_code=201)
 def create_transaction(payload: TransactionInput):
-    with connection() as db:
-        if payload.category_id:
-            category = db.execute("SELECT transaction_type FROM categories WHERE id = ?", (payload.category_id,)).fetchone()
-            if not category:
-                raise HTTPException(404, "دسته‌بندی پیدا نشد.")
-            if category["transaction_type"] != payload.transaction_type:
-                raise HTTPException(422, "نوع دسته‌بندی با نوع تراکنش هم‌خوان نیست.")
-        cursor = db.execute(
-            """INSERT INTO transactions(transaction_type, amount, occurred_on, category_id, account_id, note)
-               VALUES (?, ?, ?, ?, ?, ?)""",
-            (payload.transaction_type, payload.amount, payload.occurred_on.isoformat(), payload.category_id, payload.account_id, payload.note.strip()),
-        )
+    with connection(write=True) as db:
+        validate_references(db, payload)
+        cursor = db.execute("""INSERT INTO transactions(transaction_type, amount, occurred_on, category_id, account_id, note, title, counterparty, status)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""", transaction_values(payload))
         write_audit_log(db, "create", "transaction", cursor.lastrowid, json.dumps({"after": payload.model_dump(mode="json")}, ensure_ascii=False))
         return {"id": cursor.lastrowid}
+
+
+@router.patch("/transactions/{identifier}")
+def update_transaction(identifier: int, payload: TransactionInput):
+    with connection(write=True) as db:
+        before = db.execute("SELECT * FROM transactions WHERE id = ?", (identifier,)).fetchone()
+        if not before:
+            raise HTTPException(404, "تراکنش پیدا نشد.")
+        validate_references(db, payload)
+        db.execute("""UPDATE transactions SET transaction_type=?, amount=?, occurred_on=?, category_id=?, account_id=?, note=?, title=?, counterparty=?, status=? WHERE id=?""", (*transaction_values(payload), identifier))
+        write_audit_log(db, "update", "transaction", identifier, json.dumps({"before": dict(before), "after": payload.model_dump(mode="json")}, ensure_ascii=False))
+    return {"id": identifier}
+
+
+@router.delete("/transactions/{identifier}")
+def delete_transaction(identifier: int, confirm: bool = False):
+    if not confirm:
+        raise HTTPException(422, "حذف تراکنش نیاز به تأیید دارد.")
+    with connection(write=True) as db:
+        before = db.execute("SELECT * FROM transactions WHERE id=?", (identifier,)).fetchone()
+        if not before:
+            raise HTTPException(404, "تراکنش پیدا نشد.")
+        write_audit_log(db, "delete", "transaction", identifier, json.dumps({"before": dict(before)}, ensure_ascii=False))
+        db.execute("DELETE FROM transactions WHERE id=?", (identifier,))
+    return {"status": "deleted"}
 
 
 @router.get("/transactions")
@@ -58,7 +91,7 @@ def transactions(month: str | None = Query(default=None, pattern=r"^\d{4}-\d{2}$
         where = "WHERE t.occurred_on >= ? AND t.occurred_on < ?"
         params.extend((start, end))
     query = f"""
-        SELECT t.id, t.transaction_type, t.amount, t.occurred_on, t.note,
+        SELECT t.*,
                c.name AS category_name, a.name AS account_name
         FROM transactions t
         LEFT JOIN categories c ON c.id = t.category_id
@@ -69,5 +102,6 @@ def transactions(month: str | None = Query(default=None, pattern=r"^\d{4}-\d{2}$
     with connection() as db:
         result = [serialize(row) for row in db.execute(query, params).fetchall()]
     for item in result:
+        item["title"] = item["title"] or item["note"] or "تراکنش"
         item["occurred_on"] = format_jalali_date(item["occurred_on"])
     return result

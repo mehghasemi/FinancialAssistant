@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>همراه مالی</title>
-    <link rel="stylesheet" href="/static/styles.css?v=0.17.0&layout=compact" />
+    <link rel="stylesheet" href="/static/styles.css?v=0.20.1" />
   </head>
   <body>
     <div class="shell">
@@ -12,7 +12,8 @@
         <div class="brand"><span>₪</span><b>همراه مالی</b></div>
         <nav>
           <button class="nav-link active" data-page="dashboard">داشبورد</button>
-          <button class="nav-link" data-page="transactions">درآمد و هزینه</button>
+          <button class="nav-link" data-page="transactions">مدیریت درآمد و هزینه</button>
+          <button class="nav-link" data-page="assets">مدیریت دارایی‌ها</button>
           <button class="nav-link" data-page="commitmentManagement">مدیریت تعهدات</button>
           <button class="nav-link" data-page="installmentManagement">مدیریت اقساط</button>
           <button class="nav-link" data-page="auditLog">رویدادنگاری</button>
@@ -20,6 +21,7 @@
           <button class="nav-link" data-page="help">راهنمای سیستم</button>
           <button class="nav-link" data-page="releases">تاریخچهٔ تغییرات</button>
         </nav>
+        <div class="data-status"><span id="applicationVersion"></span><small>آخرین تغییر اطلاعات</small><time id="lastDataChange" aria-live="polite">در حال بررسی…</time></div>
       </aside>
       <main>
         <section id="dashboard" class="page active">
@@ -37,21 +39,63 @@
         </section>
 
         <section id="transactions" class="page">
-          <header><div><h1>ثبت درآمد و هزینه</h1><p>هر تراکنش واقعی یک بار ثبت می‌شود.</p></div></header>
-          <div class="columns form-columns">
+          <header><div><h1>مدیریت درآمدها و هزینه‌ها</h1><p>ثبت و ویرایش تراکنش‌ها و بررسی یکپارچهٔ تعهدات و اقساط.</p></div><button id="toggleTransactionEntry" class="primary" type="button" aria-expanded="false" aria-controls="transactionEntry">＋ ثبت درآمد / هزینه</button></header>
+          <div id="transactionEntry" class="columns form-columns" hidden>
             <form id="transactionForm" class="panel form-panel">
-              <h2>تراکنش جدید</h2>
+              <h2 id="transactionFormTitle">تراکنش جدید</h2>
+              <div class="field"><label for="transactionTitle">عنوان</label><input id="transactionTitle" maxlength="120" required /></div>
+              <div class="field"><label for="transactionParty">طرف حساب / منبع یا محل</label><input id="transactionParty" maxlength="120" /></div>
+              <div class="field"><label for="transactionStatus">وضعیت</label><select id="transactionStatus"><option value="paid">انجام‌شده</option><option value="unpaid">در انتظار</option><option value="cancelled">لغوشده</option></select></div>
               <div class="field"><label for="transactionType">نوع</label><select id="transactionType"><option value="expense">هزینه</option><option value="income">درآمد</option></select></div>
               <div class="field"><label for="transactionAmount">مبلغ (تومان)</label><input id="transactionAmount" data-amount inputmode="numeric" required /></div>
               <div class="field"><label for="transactionDate">تاریخ شمسی</label><input id="transactionDate" inputmode="numeric" placeholder="۱۴۰۵/۰۶/۲۸" required /></div>
-              <div class="field"><label for="transactionCategory">دسته‌بندی</label><select id="transactionCategory" required></select></div>
+              <div class="field"><label for="transactionCategory">دسته‌بندی</label><select id="transactionCategory"></select></div>
               <div class="field"><label for="transactionAccount">حساب</label><select id="transactionAccount"></select></div>
-              <div class="field"><label for="transactionNote">شرح</label><input id="transactionNote" maxlength="300" placeholder="مثلاً خرید سوپرمارکت" required /></div>
-              <details class="help"><summary>؟ راهنمای ثبت تراکنش</summary><p>این فرم فقط یک درآمد یا هزینهٔ واقعی ثبت می‌کند. دسته باید با نوع تراکنش هم‌خوان باشد و مبلغ باید بزرگ‌تر از صفر باشد.</p></details>
-              <button class="primary" type="submit">ثبت تراکنش</button><p class="form-message" id="transactionMessage" role="status" aria-live="polite"></p>
+              <div class="field"><label for="transactionNote">شرح</label><input id="transactionNote" maxlength="300" placeholder="توضیحات اختیاری" /></div>
+              <details class="help"><summary>؟ راهنمای ثبت تراکنش</summary><p>وضعیت انجام‌شده برای دریافت یا پرداخت واقعی و در انتظار برای موارد برنامه‌ریزی‌شده است. پرداخت قسط را دوباره به‌عنوان هزینه ثبت نکنید؛ گزارش اقساط را جدا نمایش می‌دهد. دسته باید با نوع تراکنش هم‌خوان باشد و مبلغ باید بزرگ‌تر از صفر باشد.</p></details>
+              <button class="primary" type="submit">ذخیرهٔ تراکنش</button><button id="cancelTransactionEdit" class="quiet" type="button" hidden>انصراف از ویرایش</button>
             </form>
-            <article class="panel"><div class="panel-title"><h2>تراکنش‌های اخیر</h2><label class="month-filter">ماه شمسی <select id="transactionMonth"></select></label></div><div class="table-wrap"><table><thead><tr><th>تاریخ</th><th>شرح</th><th>دسته</th><th>نوع</th><th>مبلغ</th></tr></thead><tbody id="transactionRows"></tbody></table></div></article>
           </div>
+          <p class="form-message" id="transactionMessage" role="status" aria-live="polite"></p>
+          <article class="panel finance-report">
+            <div class="panel-title"><h2>گزارش مالی یکپارچه</h2></div>
+            <div id="financeFilters" class="report-filters">
+              <label>ماه شمسی<select id="transactionMonth"></select></label>
+              <label>سال شمسی<input id="reportYear" data-count min="1200" max="1600" inputmode="numeric" placeholder="همهٔ سال‌ها" /></label>
+              <label>از تاریخ شمسی<input id="reportStart" placeholder="۱۴۰۵/۰۱/۰۱" /></label>
+              <label>تا تاریخ شمسی<input id="reportEnd" placeholder="۱۴۰۵/۱۲/۲۹" /></label>
+              <label>نوع رکورد<select id="reportType"><option value="">همه</option><option value="income">درآمد</option><option value="expense">هزینه</option><option value="installment">قسط</option><option value="commitment">تعهد (تجمیع اقساط)</option></select></label>
+              <label>نوع درآمد / هزینه / تعهد<input id="reportCategory" /></label>
+              <label>وضعیت<select id="reportStatus"><option value="">همه</option><option value="paid">انجام‌شده / تسویه</option><option value="unpaid">در انتظار / پرداخت‌نشده</option><option value="partial">پرداخت جزئی</option><option value="overdue">معوق</option><option value="cancelled">لغوشده</option></select></label>
+              <label>طرف حساب<input id="reportParty" /></label>
+              <label>عنوان / توضیحات<input id="reportSearch" /></label>
+              <label>حداقل مبلغ (تومان)<input id="reportMin" data-amount inputmode="numeric" /></label>
+              <label>حداکثر مبلغ (تومان)<input id="reportMax" data-amount inputmode="numeric" /></label>
+              <button id="resetReport" class="quiet" type="button">پاک‌کردن فیلترها</button>
+            </div>
+            <p class="help-text">تعهدات برنامه‌ریزی‌شده، جمع اقساط با سررسید در بازهٔ انتخابی است؛ شامل پرداخت‌شده و پرداخت‌نشده. سایر هزینه‌ها، هزینه‌های ثبت‌شده خارج از اقساط است (انجام‌شده و در انتظار، بدون لغوشده‌ها). مجموع هزینه‌ها = تعهدات برنامه‌ریزی‌شده + سایر هزینه‌ها؛ مانده = درآمد − مجموع هزینه‌ها. پرداخت قسط را دوباره به‌عنوان هزینه ثبت نکنید. نمای «تعهد» تجمیع اقساط است و مبلغ آن دوباره حساب نمی‌شود.</p>
+            <div id="financeSummary" class="finance-summary" aria-live="polite"></div>
+            <p id="financeMessage" class="form-message" role="status"></p>
+            <div class="table-wrap"><table><thead><tr><th>تاریخ / سررسید</th><th>نوع</th><th>عنوان</th><th>دسته‌بندی</th><th>مبلغ</th><th>وضعیت</th><th>طرف حساب</th><th>شماره / تعداد قسط</th><th>توضیحات</th><th>عملیات</th></tr></thead><tbody id="transactionRows"></tbody><tfoot id="financeFooter"></tfoot></table></div>
+          </article>
+        </section>
+
+        <section id="assets" class="page">
+          <header><div><h1>مدیریت دارایی‌ها</h1><p>دارایی‌های مالی و غیرمالی و روند تغییر ارزش آن‌ها.</p></div></header>
+          <form id="assetForm" class="panel asset-form">
+            <label>عنوان دارایی<input name="title" required maxlength="120" /></label>
+            <label>نوع دارایی<input name="kind" required maxlength="80" list="assetKinds" /></label>
+            <datalist id="assetKinds"><option value="نقد و سپرده"></option><option value="ملک"></option><option value="خودرو"></option><option value="طلا"></option><option value="سهام"></option><option value="سایر"></option></datalist>
+            <label>تاریخ ثبت شمسی<input name="registered_on" required /></label>
+            <label>ارزش اولیه (تومان)<input name="initial_value" data-amount inputmode="numeric" required /></label>
+            <label>ارزش جاری (تومان)<input name="current_value" data-amount inputmode="numeric" required /></label>
+            <label>توضیحات<input name="note" maxlength="500" /></label>
+            <label>توضیح تغییر ارزش<input name="change_note" maxlength="500" /></label>
+            <button class="primary" type="submit">ذخیرهٔ دارایی</button><button id="cancelAssetEdit" class="quiet" type="button">فرم جدید</button>
+            <p id="assetMessage" class="form-message" role="status"></p>
+          </form>
+          <article class="panel finance-report"><div class="table-wrap"><table><thead><tr><th>عنوان</th><th>نوع</th><th>تاریخ ثبت</th><th>ارزش اولیه</th><th>ارزش جاری</th><th>تغییر ارزش</th><th>توضیحات</th><th>عملیات</th></tr></thead><tbody id="assetRows"></tbody></table></div></article>
+          <article id="assetHistory" class="panel finance-report" hidden><h2 id="assetHistoryTitle">تاریخچهٔ ارزش</h2><button class="quiet" type="button" id="closeAssetHistory">بستن</button><div class="table-wrap"><table><thead><tr><th>تاریخ تغییر</th><th>ارزش قبلی</th><th>ارزش جدید</th><th>توضیح</th></tr></thead><tbody id="assetHistoryRows"></tbody></table></div></article>
         </section>
 
         <section id="commitmentManagement" class="page">
@@ -74,9 +118,9 @@
               <div class="field"><label for="commitmentTotal">مبلغ وام / اصل تعهد (تومان)</label><input id="commitmentTotal" data-amount inputmode="numeric" placeholder="مثلاً ۱۰۰٬۰۰۰٬۰۰۰" /></div>
               <div class="field"><label for="commitmentRepayment">مبلغ بازپرداخت (تومان؛ محاسبه از اقساط)</label><input id="commitmentRepayment" data-amount inputmode="numeric" readonly /></div>
               <div class="field"><label for="installmentAmount">مبلغ هر قسط</label><input id="installmentAmount" data-amount inputmode="numeric" required /></div>
-              <div class="field"><label for="installmentCount">تعداد اقساط</label><input id="installmentCount" type="number" min="1" max="600" value="12" required /></div>
+              <div class="field"><label for="installmentCount">تعداد اقساط</label><input id="installmentCount" type="text" data-count inputmode="numeric" min="1" max="600" value="12" required /></div>
               <div class="field"><label for="firstDueDate">تاریخ اولین قسط (شمسی)</label><input id="firstDueDate" inputmode="numeric" placeholder="۱۴۰۵/۰۷/۰۱" required /></div>
-              <div class="field"><label for="intervalMonths">دورهٔ پرداخت (ماه)</label><input id="intervalMonths" type="number" min="1" max="12" value="1" required /></div>
+              <div class="field"><label for="intervalMonths">دورهٔ پرداخت (ماه)</label><input id="intervalMonths" type="text" data-count inputmode="numeric" min="1" max="12" value="1" required /></div>
               <div class="field"><label for="lastDueDate">تاریخ پایان (محاسبه‌شده)</label><input id="lastDueDate" readonly placeholder="پس از پیش‌نمایش نمایش داده می‌شود" /></div>
               <details class="help"><summary>؟ راهنما</summary><p>مثلاً برای وام ۱۰ قسطه، تعداد را ۱۰ و دوره را ۱ ماه وارد کنید. مبلغ هر قسط و تعداد را وارد کنید؛ بازپرداخت کل از مجموع اقساط محاسبه می‌شود. ابتدا پیش‌نمایش را بررسی و سپس ثبت نهایی را تأیید کنید.</p></details>
               <button class="quiet" id="previewCommitment" type="button">نمایش پیش‌نمایش اقساط</button>
@@ -95,7 +139,7 @@
         <section id="auditLog" class="page">
           <header><div><h1>رویدادنگاری تغییرات</h1><p>رویدادهای ثبت‌شده با تاریخ، شناسه و جزئیات قبل و بعد؛ اطلاعات ثبت‌نشدهٔ گذشته قابل بازسازی نیست.</p></div></header>
           <article class="panel"><div class="grid-filters">
-            <div class="field"><label for="auditType">بخش</label><select id="auditType"><option value="">همه</option><option value="commitment">تعهد</option><option value="installment">قسط</option><option value="payment">پرداخت</option><option value="transaction">درآمد و هزینه</option><option value="settings">تنظیمات</option><option value="system">سیستم</option></select></div>
+            <div class="field"><label for="auditType">بخش</label><select id="auditType"><option value="">همه</option><option value="commitment">تعهد</option><option value="installment">قسط</option><option value="payment">پرداخت</option><option value="asset">دارایی</option><option value="transaction">درآمد و هزینه</option><option value="settings">تنظیمات</option><option value="system">سیستم</option></select></div>
             <div class="field"><label for="auditResourceId">شناسهٔ رکورد</label><input id="auditResourceId" type="number" min="0" /></div>
             <button id="auditRefresh" class="quiet">نمایش رویدادها</button>
           </div><p id="auditMessage" role="status"></p><div id="auditEvents" class="list"></div><button id="auditMore" class="quiet" hidden>رویدادهای قدیمی‌تر</button></article>
@@ -122,7 +166,7 @@
             <div class="field"><label for="importSheet4File">فایل اکسل (xlsx)</label><input id="importSheet4File" type="file" accept=".xlsx,.xlsm" /></div><div class="settings-actions"><button class="primary" id="importSheet4Submit" type="button">وارد کردن داده</button></div><p class="form-message" id="importSheet4Message" role="status" aria-live="polite"></p><div id="importSheet4Result" class="list" aria-live="polite"></div></article>
           <article class="panel settings-panel">
             <h2>خالی کردن اطلاعات مالی</h2>
-            <p class="help-text">همهٔ تراکنش‌ها، تعهدات، اقساط، پرداخت‌ها، بودجه‌ها و سوابق ورود داده حذف می‌شوند؛ رویدادهای تغییرات برای پیگیری حفظ می‌شوند تا بتوانید دوباره ایمپورت کنید. تنظیمات، حساب‌ها و دسته‌بندی‌ها حفظ می‌شوند. پیش از حذف، یک پشتیبان در پوشهٔ backups کنار دیتابیس ذخیره می‌شود.</p>
+            <p class="help-text">همهٔ دارایی‌ها و تاریخچهٔ ارزش آن‌ها، تراکنش‌ها، تعهدات، اقساط، پرداخت‌ها، بودجه‌ها و سوابق ورود داده حذف می‌شوند؛ رویدادهای تغییرات برای پیگیری حفظ می‌شوند تا بتوانید دوباره ایمپورت کنید. تنظیمات، حساب‌ها و دسته‌بندی‌ها حفظ می‌شوند. پیش از حذف، یک پشتیبان در پوشهٔ backups کنار دیتابیس ذخیره می‌شود.</p>
             <button class="quiet clear-data-button" id="clearFinancialData" type="button">پاک کردن همهٔ اطلاعات مالی</button>
             <p class="form-message" id="clearDataMessage" role="status" aria-live="polite"></p>
           </article>
@@ -135,6 +179,9 @@
       </main>
     </div>
     <template id="emptyRow"><tr><td colspan="6" class="empty-cell">هنوز داده‌ای ثبت نشده است.</td></tr></template>
-    <script src="/static/app.js?v=0.17.0"></script>
+    <script src="/static/money.js?v=0.20.1"></script>
+    <script src="/static/table-sort.js?v=0.20.1"></script>
+    <script src="/static/app.js?v=0.20.1"></script>
+      <script src="/static/finance.js?v=0.20.1"></script>
   </body>
 </html>

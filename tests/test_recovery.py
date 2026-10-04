@@ -10,6 +10,25 @@ from app.services.backups import restore_backup
 
 
 class RecoveryTests(unittest.TestCase):
+    def test_version_four_upgrade_preserves_money_and_backfills_titles(self):
+        with database.connection() as db:
+            db.execute("INSERT INTO transactions(transaction_type,amount,occurred_on,note) VALUES ('income',1234567,'2026-09-23','قدیمی')")
+            for column in ("title", "counterparty", "status"):
+                db.execute(f"ALTER TABLE transactions DROP COLUMN {column}")
+            db.execute("DROP TABLE asset_values")
+            db.execute("DROP TABLE assets")
+            db.execute("PRAGMA user_version = 3")
+        database.initialize_database()
+        database.initialize_database()
+        with database.connection() as db:
+            row = db.execute("SELECT amount,title,status FROM transactions").fetchone()
+            self.assertEqual(tuple(row),(1234567,"قدیمی","paid"))
+        self.assertEqual(len(list((self.directory / "backups").glob("*.db"))),1)
+        restored = self.directory / "restored.db"
+        restore_backup(self.path, restored)
+        with closing(sqlite3.connect(restored)) as db:
+            self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0],4)
+
     def test_portable_migration_preserves_source_and_existing_destination(self):
         legacy = self.directory / "legacy"
         legacy.mkdir()

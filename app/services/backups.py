@@ -33,6 +33,11 @@ def validate_backup(db: sqlite3.Connection) -> None:
         columns = {row[1] for row in db.execute("PRAGMA table_info(commitments)")}
         if not {"interval_months", "repayment_amount", "unique_code", "source_key"}.issubset(columns):
             raise ValueError("Backup schema does not match its version")
+    if version >= 4:
+        for table, required in {"assets": {"id", "title", "kind", "registered_on", "initial_value", "current_value", "note"}, "asset_values": {"id", "asset_id", "changed_at", "old_value", "new_value", "note"}, "transactions": {"title", "counterparty", "status"}}.items():
+            columns = {row[1] for row in db.execute(f"PRAGMA table_info({table})")}
+            if not required.issubset(columns):
+                raise ValueError("Backup schema does not match its version")
     if db.execute("PRAGMA foreign_key_check").fetchone():
         raise ValueError("Backup contains broken references")
 

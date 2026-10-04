@@ -18,6 +18,14 @@ def health():
     return {"status": "ok", "application": "FinancialAssistant", "database": "sqlite", "version": APP_VERSION}
 
 
+@router.get("/data-status")
+def data_status():
+    with connection() as db:
+        row = db.execute("SELECT created_at FROM audit_logs ORDER BY id DESC LIMIT 1").fetchone()
+    return {"version": APP_VERSION, "last_changed_at": row[0] if row else None,
+            "last_changed_label": format_jalali_datetime(row[0]) if row else None}
+
+
 @router.get("/settings")
 def settings():
     return {

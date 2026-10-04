@@ -21,7 +21,7 @@ def dashboard(month: str | None = Query(default=None, pattern=r"^\d{4}-\d{2}$"))
     with connection() as db:
         transaction_data = db.execute(
             """SELECT transaction_type, COALESCE(SUM(amount), 0) AS total
-               FROM transactions WHERE occurred_on >= ? AND occurred_on < ? GROUP BY transaction_type""",
+               FROM transactions WHERE status = 'paid' AND occurred_on >= ? AND occurred_on < ? GROUP BY transaction_type""",
             (start, end),
         ).fetchall()
 

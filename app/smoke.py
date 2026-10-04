@@ -42,7 +42,7 @@ def check_executable() -> int:
                         return response.read()
 
                 assert json.loads(request("/api/health"))["application"] == "FinancialAssistant"
-                for path in ("/", "/static/app.js", "/static/styles.css", "/static/fonts/Vazirmatn-wght.woff2"):
+                for path in ("/", "/static/app.js", "/static/money.js", "/static/table-sort.js", "/static/finance.js", "/static/styles.css", "/static/fonts/Vazirmatn-wght.woff2"):
                     assert request(path), f"Missing resource: {path}"
                 created = json.loads(request("/api/commitments", {
                     "title": "وام تست", "kind": "وام", "installment_amount": 1000,
@@ -59,6 +59,12 @@ def check_executable() -> int:
                     error.close()
                 else:
                     raise AssertionError("Paid schedule was not protected")
+                asset = json.loads(request("/api/assets", {"title":"دارایی تست", "kind":"طلا", "registered_on":"1405/07/01", "initial_value":1000, "current_value":1200}))
+                assert len(json.loads(request(f'/api/assets/{asset["id"]}/history'))) == 1
+                assert json.loads(request("/api/data-status"))["last_changed_at"]
+                report = json.loads(request("/api/financial-report?month=1405-07"))
+                assert report["summary"]["installment_total"] == 1000
+                assert report["summary"]["commitment_total"] == 1000
                 backup = json.loads(request("/api/backups", {}, method="POST"))
                 from .services.backups import restore_backup
                 restore_backup(Path(backup["path"]), Path(folder) / "restored.db")

@@ -5,7 +5,7 @@ import sqlite3
 import jdatetime
 from datetime import date
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 
 def _ensure_column(db: sqlite3.Connection, table: str, definition: str) -> None:
@@ -103,7 +103,21 @@ def _backfill_repayment(db):
     ) WHERE repayment_amount IS NULL""")
 
 
-MIGRATIONS = (_legacy_schema, _schedule_interval, _backfill_repayment)
+def _assets_and_transactions(db):
+    for definition in ("title TEXT NOT NULL DEFAULT ''", "counterparty TEXT NOT NULL DEFAULT ''", "status TEXT NOT NULL DEFAULT 'paid' CHECK(status IN ('paid','unpaid','cancelled'))"):
+        _ensure_column(db, "transactions", definition)
+    db.execute("UPDATE transactions SET title = COALESCE(NULLIF(note, ''), 'تراکنش قبلی') WHERE title = ''")
+    db.execute("""CREATE TABLE IF NOT EXISTS assets (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, kind TEXT NOT NULL,
+        registered_on TEXT NOT NULL, initial_value INTEGER NOT NULL CHECK(initial_value >= 0),
+        current_value INTEGER NOT NULL CHECK(current_value >= 0), note TEXT NOT NULL DEFAULT '')""")
+    db.execute("""CREATE TABLE IF NOT EXISTS asset_values (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, asset_id INTEGER NOT NULL REFERENCES assets(id) ON DELETE CASCADE,
+        changed_at TEXT NOT NULL, old_value INTEGER, new_value INTEGER NOT NULL, note TEXT NOT NULL DEFAULT '')""")
+    db.execute("CREATE INDEX IF NOT EXISTS idx_asset_values_asset ON asset_values(asset_id, id)")
+
+
+MIGRATIONS = (_legacy_schema, _schedule_interval, _backfill_repayment, _assets_and_transactions)
 
 
 def run_migrations(db):

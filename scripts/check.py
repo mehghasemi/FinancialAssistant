@@ -33,16 +33,21 @@ def main() -> int:
     print(f"Python syntax: OK ({len(paths)} files)", flush=True)
     node = shutil.which("node")
     if node:
-        result = subprocess.run([node, "--check", str(ROOT / "static/app.js")],
+        for script in sorted((ROOT / "static").glob("*.js")):
+            result = subprocess.run([node, "--check", str(script)],
                                 capture_output=True, text=True)
-        if result.returncode:
-            print(result.stderr, file=sys.stderr)
-            return result.returncode
+            if result.returncode:
+                print(result.stderr, file=sys.stderr)
+                return result.returncode
         print("JavaScript syntax: OK", flush=True)
     else:
         print("JavaScript syntax: SKIPPED (node not found)", flush=True)
     if args.scope == "syntax":
         return 0
+    if node and args.scope in ("all", "finance", "api"):
+        result = subprocess.run([node, str(ROOT / "tests/test_money.js")], cwd=ROOT)
+        if result.returncode:
+            return result.returncode
     suite = unittest.defaultTestLoader.discover(str(ROOT / "tests"), pattern=PATTERNS[args.scope])
     result = unittest.TextTestRunner(verbosity=1).run(suite)
     return 0 if result.wasSuccessful() else 1

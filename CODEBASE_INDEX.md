@@ -11,6 +11,7 @@
 | درآمد، هزینه و داشبورد | `app/routers/transactions.py`، `app/routers/dashboard.py` | `all`؛ پوشش مستقیم فعلی محدود است |
 | ورود Sheet4 از رابط و CLI | `app/routers/imports.py`، `app/services/excel_import.py`، `scripts/import_sheet4.py` | `api`؛ آپلود و جلوگیری از ورود تکراری |
 | واردسازی جامع اکسل | `scripts/import_workbook.py` | `import` |
+| دارایی و گزارش یکپارچه | `app/routers/assets.py`، `app/routers/reports.py`، `static/finance.js`؛ نمایش زندهٔ مبالغ: `static/money.js`؛ مرتب‌سازی جدول‌ها: `static/table-sort.js` | `all` و بررسی مرورگر |
 | رابط فارسی | `static/index.html`، `static/app.js`، `static/styles.css` | `syntax` و بررسی رفتار بخش تغییرکرده در مرورگر |
 | نسخه و تنظیمات اجرا | `app/config.py`، `requirements.txt` | `syntax` و بررسی مرتبط با تغییر |
 

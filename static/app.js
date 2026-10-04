@@ -1,6 +1,7 @@
 const api = (path, options = {}) => fetch(`/api${path}`, { headers: { "Content-Type": "application/json" }, ...options }).then(async response => {
   const data = await response.json();
   if (!response.ok) throw new Error(data.detail || "خطا در ارتباط با برنامه");
+  if (options.method && options.method !== "GET" && typeof loadDataStatus === "function") loadDataStatus();
   return data;
 });
 
@@ -48,18 +49,19 @@ function renderTotals(id, cells) {
   footer.innerHTML = `<tr>${cells.map((cell, index) => index === 0 ? `<th scope="row">${cell}</th>` : `<td>${cell}</td>`).join("")}</tr>`;
 }
 function sumField(items, field) { return items.reduce((sum, item) => sum + Number(item[field] || 0), 0); }
-function renderRows(id, rows, colspan) { document.getElementById(id).innerHTML = rows.length ? rows.join("") : `<tr><td colspan="${colspan}" class="empty-cell">داده‌ای برای نمایش نیست.</td></tr>`; }
+function renderRows(id, rows, colspan) { document.getElementById(id).innerHTML = rows.length ? rows.join("") : `<tr><td colspan="${colspan}" class="empty-cell">داده‌ای برای نمایش نیست.</td></tr>`; TableSort.refresh(id); }
 function accountOptions() { return `<option value="">حساب انتخاب نشده</option>${accounts.map(account => `<option value="${account.id}">${escapeHtml(account.name)}</option>`).join("")}`; }
-function formatAmountInput(input) { const amount = amountNumber(input.value); input.value = amount ? amount.toLocaleString("fa-IR") : ""; }
+function formatAmountInput(input) { Money.format(input); }
 
 function populateMonthSelectors() {
   const now = currentJalaliParts(); const current = jalaliMonthKey(now.year, now.month);
   const options = Array.from({ length: 37 }, (_, index) => { const item = offsetJalaliMonth(now.year, now.month, index - 12); const key = jalaliMonthKey(item.year, item.month); return `<option value="${key}">${jalaliMonthLabel(key)}</option>`; }).join("");
   document.getElementById("dashboardMonth").innerHTML = options;
-  document.getElementById("transactionMonth").innerHTML = options;
+  document.getElementById("transactionMonth").innerHTML = `<option value="">همهٔ ماه‌ها</option>${jalaliMonths.map((name,index)=>`<option value="${String(index+1).padStart(2,"0")}">${name}</option>`).join("")}`;
   document.getElementById("installmentMonth").innerHTML = `<option value="">همهٔ ماه‌ها</option>${options}`;
   document.getElementById("dashboardMonth").value = current;
-  document.getElementById("transactionMonth").value = current;
+  document.getElementById("transactionMonth").value = String(now.month).padStart(2,"0");
+  document.getElementById("reportYear").value = persianDigits(now.year);
   document.getElementById("installmentMonth").value = current;
 }
 function setJalaliDateDefaults() {
@@ -75,7 +77,7 @@ async function loadReferenceData() {
   renderCommitmentGrid();
   updateCategories();
 }
-function updateCategories() { const type = document.getElementById("transactionType").value; document.getElementById("transactionCategory").innerHTML = categories.filter(item => item.transaction_type === type).map(item => `<option value="${item.id}">${escapeHtml(item.name)}</option>`).join(""); }
+function updateCategories() { const type = document.getElementById("transactionType").value; document.getElementById("transactionCategory").innerHTML = `<option value="">بدون دسته‌بندی</option>` + categories.filter(item => item.transaction_type === type).map(item => `<option value="${item.id}">${escapeHtml(item.name)}</option>`).join(""); }
 function commitmentDisplay(item) {
   const year = value => value ? latinDigits(toJalaliDate(value)).split("/")[0] : "نامشخص";
   const remainingCount = Math.max(0, item.installment_count - item.paid_installment_count);
@@ -165,13 +167,7 @@ async function loadDashboard() {
   document.getElementById("commitmentProgressLabel").textContent = data.planned_commitments ? "از مبلغ اقساط این ماه پرداخت شده" : "برای این ماه قسطی ثبت نشده است";
   renderDashboardActions();
 }
-async function loadTransactions() {
-  const data = await api(`/transactions?month=${document.getElementById("transactionMonth").value}`);
-  const income = sumField(data.filter(item => item.transaction_type === "income"), "amount");
-  const expense = sumField(data.filter(item => item.transaction_type === "expense"), "amount");
-  renderTotals("transactionRows", ["جمع ماه انتخابی", `درآمد: ${currency(income)}`, `هزینه: ${currency(expense)}`, "خالص", currency(income - expense)]);
-  renderRows("transactionRows", data.map(item => `<tr><td>${item.occurred_on}</td><td>${escapeHtml(item.note || "—")}</td><td>${escapeHtml(item.category_name || "—")}</td><td><span class="badge ${item.transaction_type === "expense" ? "partial" : ""}">${item.transaction_type === "expense" ? "هزینه" : "درآمد"}</span></td><td>${currency(item.amount)}</td></tr>`), 5);
-}
+async function loadTransactions() { await loadFinancialReport(); }
 function installmentQuery(includeStatus = false) {
   const params = new URLSearchParams();
   if (selectedCommitmentId !== null) return new URLSearchParams({ commitment_id: selectedCommitmentId }).toString();
@@ -242,7 +238,7 @@ async function openPaymentDetails(installmentId, trigger) {
   const row = trigger.closest("tr");
   const details = await api(`/installments/${installmentId}/details`);
   const payments = details.payments.map(payment => `<form class="payment-edit-form inline-edit-fields" data-id="${payment.id}"><span>پرداخت #${persianDigits(payment.id)}</span><input name="amount" aria-label="مبلغ پرداخت" data-amount inputmode="numeric" value="${Number(payment.amount).toLocaleString("fa-IR")}" required /><input name="paid_on" aria-label="تاریخ پرداخت شمسی" value="${escapeHtml(payment.paid_on)}" required /><select name="account_id" aria-label="حساب"><option value="">بدون حساب</option>${accounts.map(account => `<option value="${account.id}" ${account.id === payment.account_id ? "selected" : ""}>${escapeHtml(account.name)}</option>`).join("")}</select><input name="note" aria-label="یادداشت" maxlength="300" value="${escapeHtml(payment.note || "")}" /><button class="quiet" type="submit">ذخیره پرداخت</button><button class="quiet delete-payment" type="button" data-id="${payment.id}">حذف پرداخت</button></form>`).join("") || "پرداختی ثبت نشده است.";
-  const history = details.history.map(log => `<li>${escapeHtml(log.created_at)} · ${escapeHtml({ create: "ثبت", update: "ویرایش", delete: "حذف" }[log.action] || log.action)} ${escapeHtml({ commitment: "تعهد", installment: "قسط", payment: "پرداخت" }[log.resource_type] || log.resource_type)} · ${auditDetails(log.details)}</li>`).join("") || "<li>تغییری ثبت نشده است.</li>";
+  const history = details.history.map(log => `<li>${escapeHtml(log.created_at)} · ${escapeHtml({ create: "ثبت", update: "ویرایش", delete: "حذف" }[log.action] || log.action)} ${escapeHtml({ commitment: "تعهد", installment: "قسط", payment: "پرداخت", asset: "دارایی" }[log.resource_type] || log.resource_type)} · ${auditDetails(log.details)}</li>`).join("") || "<li>تغییری ثبت نشده است.</li>";
   row.insertAdjacentHTML("afterend", `<tr class="payment-details-row"><td colspan="7"><b>ریز پرداخت‌ها</b>${payments}<details><summary>تاریخچه تغییرات</summary><ul>${history}</ul></details><p class="form-message" role="status"></p><button class="quiet close-payment-details" type="button">بستن</button></td></tr>`);
 }
 function openInlineCommitmentEdit(installmentId) {
@@ -276,9 +272,9 @@ function openCommitmentEditor(item, target, grid) {
       <div class="field"><label>نوع<input name="kind" minlength="2" maxlength="50" value="${escapeHtml(item.kind)}" required /></label></div>
       <div class="field"><label>مبلغ وام / اصل تعهد<input name="total_amount" data-amount inputmode="numeric" value="${amount(item.total_amount)}" /></label></div>
       <div class="field"><label>مبلغ بازپرداخت<input name="repayment_amount" data-amount inputmode="numeric" value="${amount(item.repayment_amount ?? item.total_amount ?? item.planned_amount)}" required /></label></div>
-      <div class="field"><label>تعداد اقساط<input name="installment_count" type="number" min="1" max="600" value="${item.installment_count}" required /></label></div>
+      <div class="field"><label>تعداد اقساط<input name="installment_count" type="text" data-count inputmode="numeric" min="1" max="600" value="${item.installment_count}" required /></label></div>
       <div class="field"><label>مبلغ اقساط عادی<input name="installment_amount" data-amount inputmode="numeric" value="${amount(item.installment_amount)}" required /></label></div>
-      <div class="field"><label>دورهٔ پرداخت (ماه)<input name="interval_months" type="number" min="1" max="12" value="${item.interval_months ?? ""}" placeholder="برای بازتنظیم سررسیدها وارد کنید" /></label></div>
+      <div class="field"><label>دورهٔ پرداخت (ماه)<input name="interval_months" type="text" data-count inputmode="numeric" min="1" max="12" value="${item.interval_months ?? ""}" placeholder="برای بازتنظیم سررسیدها وارد کنید" /></label></div>
       <div class="field"><label>تاریخ اولین قسط (شمسی)<input name="first_due_date" inputmode="numeric" value="${escapeHtml(firstDue)}" required /></label></div>
       <div class="field"><label>تاریخ پایان فعلی (محاسبه‌شده)<input value="${escapeHtml(toJalaliDate(item.last_due_date))}" readonly /></label></div>
       <div class="field"><label>جمع اقساط فعلی<input value="${amount(item.planned_amount)}" readonly /></label></div>
@@ -292,23 +288,23 @@ function openCommitmentEditor(item, target, grid) {
   }
   const syncRepayment = () => {
     const amount = amountNumber(form.elements.namedItem("installment_amount").value);
-    const count = Number(form.elements.namedItem("installment_count").value);
+    const count = amountNumber(form.elements.namedItem("installment_count").value);
     if (amount > 0 && count > 0) form.elements.namedItem("repayment_amount").value = (amount * count).toLocaleString("fa-IR");
   };
   form.elements.namedItem("installment_amount").addEventListener("input", () => {
     if (form.elements.namedItem("normalize_amounts")) form.elements.namedItem("normalize_amounts").checked = true;
-    syncRepayment();
+    syncRepayment(); Money.scan(form);
   });
-  form.elements.namedItem("normalize_amounts")?.addEventListener("change", event => { if (event.target.checked) syncRepayment(); });
+  form.elements.namedItem("normalize_amounts")?.addEventListener("change", event => { if (event.target.checked) { syncRepayment(); Money.scan(form); } });
 
   form.querySelectorAll("input").forEach(input => { input.dataset.original = input.value; });
   ["repayment_amount", "installment_count"].forEach(name => form.elements.namedItem(name).addEventListener("input", () => {
     const total = amountNumber(form.elements.namedItem("repayment_amount").value);
-    const count = Number(form.elements.namedItem("installment_count").value);
+    const count = amountNumber(form.elements.namedItem("installment_count").value);
     if (total > 0 && count > 0) form.elements.namedItem("installment_amount").value = Math.floor(total / count).toLocaleString("fa-IR");
   }));
 }
-function commitmentPayload() { return { title: document.getElementById("commitmentTitle").value, kind: document.getElementById("commitmentKind").value, total_amount: amountNumber(document.getElementById("commitmentTotal").value) || null, repayment_amount: amountNumber(document.getElementById("installmentAmount").value) * Number(document.getElementById("installmentCount").value), installment_amount: amountNumber(document.getElementById("installmentAmount").value), installment_count: Number(document.getElementById("installmentCount").value), first_due_date: document.getElementById("firstDueDate").value, interval_months: Number(document.getElementById("intervalMonths").value) }; }
+function commitmentPayload() { return { title: document.getElementById("commitmentTitle").value, kind: document.getElementById("commitmentKind").value, total_amount: amountNumber(document.getElementById("commitmentTotal").value) || null, repayment_amount: amountNumber(document.getElementById("installmentAmount").value) * amountNumber(document.getElementById("installmentCount").value), installment_amount: amountNumber(document.getElementById("installmentAmount").value), installment_count: amountNumber(document.getElementById("installmentCount").value), first_due_date: document.getElementById("firstDueDate").value, interval_months: amountNumber(document.getElementById("intervalMonths").value) }; }
 async function previewCommitment() {
   setMessage("commitmentMessage", "");
   try {
@@ -350,7 +346,7 @@ document.getElementById("clearFinancialData").addEventListener("click", async ev
   }
 });
 
-document.querySelectorAll(".nav-link,[data-page]").forEach(button => button.addEventListener("click", () => { const page = button.dataset.page; if (!page || !document.getElementById(page)?.classList.contains("page")) return; document.querySelectorAll(".page").forEach(section => section.classList.toggle("active", section.id === page)); document.querySelectorAll(".nav-link").forEach(link => link.classList.toggle("active", link.dataset.page === page)); if (page === "commitmentManagement") loadReferenceData().catch(error => setMessage("commitmentMessage", error.message, true)); if (page === "installmentManagement") { selectedCommitmentId = null; loadInstallments().catch(error => alert(error.message)); } if (page === "settings") loadSettings(); if (page === "auditLog") loadAuditLogs(); }));
+document.querySelectorAll(".nav-link,[data-page]").forEach(button => button.addEventListener("click", () => { const page = button.dataset.page; if (!page || !document.getElementById(page)?.classList.contains("page")) return; document.querySelectorAll(".page").forEach(section => section.classList.toggle("active", section.id === page)); document.querySelectorAll(".nav-link").forEach(link => link.classList.toggle("active", link.dataset.page === page)); if (page === "commitmentManagement") loadReferenceData().catch(error => setMessage("commitmentMessage", error.message, true)); if (page === "installmentManagement") { selectedCommitmentId = null; loadInstallments().catch(error => alert(error.message)); } if (page === "assets") loadAssets(); if (page === "transactions") loadTransactions(); if (page === "settings") loadSettings(); if (page === "auditLog") loadAuditLogs(); }));
 document.getElementById("createNewCommitment").addEventListener("click", () => {
   document.getElementById("commitmentForm").reset();
   document.getElementById("previewRows").closest("table").tFoot?.remove(); document.getElementById("previewRows").innerHTML = `<tr><td colspan="3" class="empty-cell">پیش‌نمایشی ایجاد نشده است.</td></tr>`;
@@ -364,19 +360,19 @@ document.getElementById("createNewCommitment").addEventListener("click", () => {
 });
 document.getElementById("transactionType").addEventListener("change", updateCategories);
 document.getElementById("dashboardMonth").addEventListener("change", loadDashboard);
-document.getElementById("transactionMonth").addEventListener("change", loadTransactions);
+
 ["installmentMonth", "installmentCommitment"].forEach(id => document.getElementById(id).addEventListener("change", loadInstallments));
 document.getElementById("installmentStatus").addEventListener("change", renderInstallmentRows);
 document.getElementById("installmentSearch").addEventListener("input", () => { clearTimeout(window.installmentSearchTimer); window.installmentSearchTimer = setTimeout(loadInstallments, 250); });
 document.getElementById("clearInstallmentFilters").addEventListener("click", () => { ["installmentStatus", "installmentCommitment", "installmentSearch"].forEach(id => document.getElementById(id).value = ""); const now = currentJalaliParts(); document.getElementById("installmentMonth").value = jalaliMonthKey(now.year, now.month); loadInstallments(); });
 ["installmentAmount", "installmentCount"].forEach(id => document.getElementById(id).addEventListener("input", () => {
-  const total = amountNumber(document.getElementById("installmentAmount").value) * Number(document.getElementById("installmentCount").value);
+  const total = amountNumber(document.getElementById("installmentAmount").value) * amountNumber(document.getElementById("installmentCount").value);
   document.getElementById("commitmentRepayment").value = total > 0 ? total.toLocaleString("fa-IR") : "";
 }));
 document.getElementById("previewCommitment").addEventListener("click", previewCommitment);
 document.querySelectorAll("#commitmentForm input, #commitmentForm select").forEach(input => ["input", "change"].forEach(eventName => input.addEventListener(eventName, () => { if (input.id === "lastDueDate") return; commitmentPreview = null; document.getElementById("saveCommitment").disabled = true; document.getElementById("lastDueDate").value = ""; })));
 
-document.getElementById("transactionForm").addEventListener("submit", async event => { event.preventDefault(); setMessage("transactionMessage", ""); try { await api("/transactions", { method: "POST", body: JSON.stringify({ transaction_type: document.getElementById("transactionType").value, amount: amountNumber(document.getElementById("transactionAmount").value), occurred_on: document.getElementById("transactionDate").value, category_id: Number(document.getElementById("transactionCategory").value), account_id: Number(document.getElementById("transactionAccount").value) || null, note: document.getElementById("transactionNote").value }) }); event.target.reset(); setJalaliDateDefaults(); updateCategories(); setMessage("transactionMessage", "تراکنش ثبت شد."); await refreshAll(); } catch (error) { setMessage("transactionMessage", error.message, true); } });
+
 document.getElementById("commitmentForm").addEventListener("submit", async event => { event.preventDefault(); if (!commitmentPreview) return previewCommitment(); setMessage("commitmentMessage", ""); try { await api("/commitments", { method: "POST", body: JSON.stringify(commitmentPayload()) }); event.target.reset(); setJalaliDateDefaults(); document.getElementById("installmentCount").value = 12; document.getElementById("intervalMonths").value = 1; commitmentPreview = null; document.getElementById("saveCommitment").disabled = true; document.getElementById("previewRows").closest("table").tFoot?.remove(); document.getElementById("previewRows").innerHTML = `<tr><td colspan="3" class="empty-cell">پیش‌نمایشی ایجاد نشده است.</td></tr>`; document.getElementById("previewSummary").textContent = "تعهد ثبت شد."; setMessage("commitmentMessage", "تعهد و همهٔ اقساط آن ثبت شد."); await loadReferenceData(); await refreshAll(); } catch (error) { setMessage("commitmentMessage", error.message, true); } });
 document.getElementById("installmentRows").addEventListener("click", async event => { const payment = event.target.closest(".pay-installment"), commitment = event.target.closest(".edit-commitment"), installment = event.target.closest(".edit-installment"), details = event.target.closest(".payment-details"), deletion = event.target.closest(".delete-payment"); if (payment) openInlinePayment(Number(payment.dataset.id)); if (commitment) openInlineCommitmentEdit(Number(commitment.dataset.id)); if (installment) openInlineInstallmentEdit(Number(installment.dataset.id)); if (details) { try { await openPaymentDetails(Number(details.dataset.id), details); } catch (error) { alert(error.message); } } if (deletion && confirm("این پرداخت حذف شود؟")) { try { await api(`/payments/${deletion.dataset.id}`, { method: "DELETE" }); await loadReferenceData(); await refreshAll(); } catch (error) { deletion.closest("tr").querySelector(".form-message").textContent = error.message; } } if (event.target.closest(".cancel-inline-payment, .cancel-inline-edit, .close-payment-details")) event.target.closest("tr").remove(); });
 document.getElementById("installmentRows").addEventListener("submit", async event => { const form = event.target.closest(".payment-edit-form"); if (!form) return; event.preventDefault(); const data = new FormData(form); try { await api(`/payments/${form.dataset.id}`, { method: "PATCH", body: JSON.stringify({ amount: amountNumber(data.get("amount")), paid_on: data.get("paid_on"), account_id: Number(data.get("account_id")) || null, note: data.get("note") }) }); await loadReferenceData(); await refreshAll(); } catch (error) { form.closest("tr").querySelector(".form-message").textContent = error.message; } });
@@ -411,7 +407,7 @@ for (const id of ["installmentRows", "commitmentRows"]) document.getElementById(
     }
     if (form.elements.namedItem("normalize_amounts")?.checked) {
       payload.installment_amount = amountNumber(data.get("installment_amount"));
-      payload.repayment_amount = payload.installment_amount * Number(data.get("installment_count"));
+      payload.repayment_amount = payload.installment_amount * amountNumber(data.get("installment_count"));
     }
     if (changed("first_due_date") && data.get("first_due_date")) payload.first_due_date = data.get("first_due_date");
     await api(`/commitments/${form.dataset.id}`, { method: "PATCH", body: JSON.stringify(payload) });
@@ -454,7 +450,7 @@ document.getElementById("installmentRows").addEventListener("submit", async even
 document.getElementById("settingsForm").addEventListener("submit", async event => { event.preventDefault(); setMessage("settingsMessage", ""); try { await api("/settings", { method: "PUT", body: JSON.stringify({ backup_enabled: document.getElementById("backupEnabled").checked, backup_directory: document.getElementById("backupDirectory").value }) }); setMessage("settingsMessage", "تنظیمات پشتیبان‌گیری ذخیره شد."); } catch (error) { setMessage("settingsMessage", error.message, true); } });
 document.getElementById("manualBackup").addEventListener("click", async () => { setMessage("settingsMessage", ""); try { const result = await api("/backups", { method: "POST" }); setMessage("settingsMessage", `پشتیبان ایجاد شد: ${result.path}`); } catch (error) { setMessage("settingsMessage", error.message, true); } });
 
-populateMonthSelectors(); setJalaliDateDefaults(); loadReferenceData().then(async () => { await refreshAll(); await loadReleases(); }).catch(error => document.body.insertAdjacentHTML("afterbegin", `<p class="fatal" role="alert">${escapeHtml(error.message)}</p>`));
+
 
 document.getElementById("importSheet4Submit").addEventListener("click", async () => {
   const input = document.getElementById("importSheet4File");
@@ -492,8 +488,8 @@ document.getElementById("importSheet4Submit").addEventListener("click", async ()
 
 document.getElementById("commitmentSearch").addEventListener("input", renderCommitmentGrid);
 
-const auditLabels = { before:"قبل", after:"بعد", amount:"مبلغ", repayment_amount:"بازپرداخت", total_amount:"اصل تعهد", title:"عنوان", kind:"نوع", due_date:"سررسید", paid_on:"تاریخ پرداخت", note:"یادداشت", account_id:"شناسه حساب", installment_id:"شناسه قسط", commitment_id:"شناسه تعهد", installment_count:"تعداد اقساط", interval_months:"دوره پرداخت", first_due_date:"اولین سررسید", installment_amount:"مبلغ قسط", unique_code:"کد تعهد", installments:"اقساط", backup_enabled:"پشتیبان خودکار", backup_directory:"مسیر پشتیبان", backup_path:"فایل پشتیبان", source:"منبع", transaction_type:"نوع تراکنش", occurred_on:"تاریخ تراکنش", category_id:"شناسه دسته‌بندی" };
-const auditTypes = { commitment:"تعهد", installment:"قسط", payment:"پرداخت", transaction:"درآمد و هزینه", settings:"تنظیمات", system:"سیستم" };
+const auditLabels = { before:"قبل", after:"بعد", amount:"مبلغ", repayment_amount:"بازپرداخت", total_amount:"اصل تعهد", title:"عنوان", kind:"نوع", due_date:"سررسید", paid_on:"تاریخ پرداخت", note:"یادداشت", account_id:"شناسه حساب", installment_id:"شناسه قسط", commitment_id:"شناسه تعهد", installment_count:"تعداد اقساط", interval_months:"دوره پرداخت", first_due_date:"اولین سررسید", installment_amount:"مبلغ قسط", unique_code:"کد تعهد", installments:"اقساط", backup_enabled:"پشتیبان خودکار", backup_directory:"مسیر پشتیبان", backup_path:"فایل پشتیبان", source:"منبع", transaction_type:"نوع تراکنش", occurred_on:"تاریخ تراکنش", category_id:"شناسه دسته‌بندی", current_value:"ارزش جاری", initial_value:"ارزش اولیه", registered_on:"تاریخ ثبت", change_note:"توضیح تغییر ارزش", counterparty:"طرف حساب", status:"وضعیت" };
+const auditTypes = { asset:"دارایی", commitment:"تعهد", installment:"قسط", payment:"پرداخت", transaction:"درآمد و هزینه", settings:"تنظیمات", system:"سیستم" };
 function auditDetails(value) {
   if (value && typeof value === "object") return `<dl class="audit-details">${Object.entries(value).map(([key, item]) => `<dt>${escapeHtml(auditLabels[key] || key)}</dt><dd>${auditDetails(item)}</dd>`).join("")}</dl>`;
   return escapeHtml(value == null ? "—" : auditText(String(value)));

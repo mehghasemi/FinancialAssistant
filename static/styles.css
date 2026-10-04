@@ -129,3 +129,34 @@ tfoot th, tfoot td { background:var(--green-soft); color:var(--ink); font-weight
   .dashboard-action-row { grid-template-columns:minmax(0,1fr) auto; }
   .dashboard-action-row > button { grid-column:2; }
 }
+
+.amount-words { display:block; color:var(--muted); font-size:11px; font-weight:400; line-height:1.7; margin-top:4px; white-space:normal; max-width:360px; }
+input[data-amount] { direction:ltr; text-align:right; }
+.report-filters,.asset-form { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; align-items:start; }
+.report-filters label,.asset-form label { display:grid; gap:6px; color:var(--muted); font-size:12px; }
+.finance-report { margin-top:18px; min-width:0; }
+.finance-summary { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:10px; margin:14px 0; }
+.finance-summary > div { background:var(--green-soft); padding:12px; border-radius:9px; }
+.finance-summary strong,.finance-summary small { display:block; margin-top:5px; }
+.finance-summary > div > span { font-size:12px; color:var(--muted); }
+.report-footer { display:flex; flex-wrap:wrap; gap:14px 24px; white-space:normal; }
+.aggregate-row { background:#edf2f8; }
+#transactions .form-columns { grid-template-columns:1fr; }
+#transactionForm { grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); align-items:start; }
+#transactionForm h2,#transactionForm .help,#transactionMessage { grid-column:1 / -1; }
+#assetHistory { scroll-margin-top:20px; }
+
+#transactions .finance-report table { min-width:1100px; }
+
+.data-status { margin-top:auto; padding:12px 10px; border-top:1px solid #ffffff25; color:#e7eff7; line-height:1.9; font-size:12px; }
+.data-status small,.data-status time { display:block; }
+.data-status small { color:#b8c9da; }
+.data-status time { font-variant-numeric:tabular-nums; }
+
+.sortable-heading { cursor:pointer; user-select:none; }
+.sortable-heading:hover,.sortable-heading[aria-sort="ascending"],.sortable-heading[aria-sort="descending"] { background:var(--green-soft); color:var(--green); }
+.sortable-heading:focus-visible { outline:2px solid var(--green); outline-offset:-2px; }
+.sort-arrow { white-space:nowrap; font-size:11px; }
+#transactionEntry:not([hidden]) { animation:reveal-entry .18s ease-out; }
+@keyframes reveal-entry { from { opacity:0; transform:translateY(-8px); } to { opacity:1; transform:translateY(0); } }
+@media(prefers-reduced-motion:reduce) { #transactionEntry:not([hidden]) { animation:none; } }

@@ -10,9 +10,35 @@ from .calendar import parse_jalali_date
 from .utils import normalize_text
 
 
+class AssetInput(BaseModel):
+    title: str = Field(min_length=1, max_length=120)
+    kind: str = Field(min_length=1, max_length=80)
+    registered_on: date
+    initial_value: int = Field(ge=0, le=9007199254740991)
+    current_value: int = Field(ge=0, le=9007199254740991)
+    note: str = Field(default="", max_length=500)
+    change_note: str = Field(default="", max_length=500)
+
+    @field_validator("registered_on", mode="before")
+    @classmethod
+    def parse_registration(cls, value):
+        return parse_jalali_date(value)
+
+    @field_validator("title", "kind")
+    @classmethod
+    def require_text(cls, value):
+        value = normalize_text(value).strip()
+        if not value:
+            raise ValueError("عنوان و نوع ضروری هستند")
+        return value
+
+
 class TransactionInput(BaseModel):
+    title: str = Field(default="", max_length=120)
+    counterparty: str = Field(default="", max_length=120)
+    status: Literal["paid", "unpaid", "cancelled"] = "paid"
     transaction_type: Literal["income", "expense"]
-    amount: int = Field(gt=0)
+    amount: int = Field(gt=0, le=9007199254740991)
     occurred_on: date
     category_id: int | None = None
     account_id: int | None = None

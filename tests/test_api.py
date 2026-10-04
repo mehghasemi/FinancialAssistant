@@ -29,6 +29,77 @@ class ApiTests(unittest.TestCase):
             self.addCleanup(mock.stop)
         self.client = self.enterContext(TestClient(main.app, raise_server_exceptions=False))
 
+    def test_data_status_tracks_writes_but_not_reads(self):
+        before = self.client.get("/api/data-status").json()
+        self.assertIsNone(before["last_changed_at"])
+        self.client.post("/api/assets",json=dict(title="تست",kind="طلا",registered_on="1405/07/01",initial_value=10,current_value=20))
+        after = self.client.get("/api/data-status").json()
+        self.assertIsNotNone(after["last_changed_at"])
+        self.assertIn("،",after["last_changed_label"])
+        self.client.get("/api/financial-report")
+        self.assertEqual(self.client.get("/api/data-status").json(),after)
+
+    def test_assets_value_history_and_validation(self):
+        payload = dict(title="طلا", kind="مالی", registered_on="1405/07/01", initial_value=1000, current_value=1500, note="دارایی", change_note="ثبت")
+        response = self.client.post("/api/assets", json=payload)
+        self.assertEqual(response.status_code, 201, response.text)
+        identifier = response.json()["id"]
+        payload.update(current_value=2000, change_note="ارزش‌گذاری جدید")
+        self.assertEqual(self.client.patch(f"/api/assets/{identifier}", json=payload).status_code, 200)
+        self.assertEqual(self.client.patch(f"/api/assets/{identifier}", json=payload).status_code, 200)
+        rows = self.client.get(f"/api/assets/{identifier}/history").json()
+        self.assertEqual(len(rows), 2)
+        self.assertEqual((rows[0]["old_value"], rows[0]["new_value"], rows[0]["note"]), (1500, 2000, "ارزش‌گذاری جدید"))
+        payload["current_value"] = -1
+        self.assertEqual(self.client.patch(f"/api/assets/{identifier}", json=payload).status_code, 422)
+        self.assertEqual(self.client.get("/api/assets").json()[0]["current_value"], 2000)
+        self.assertEqual(len(self.client.get("/api/audit-logs?resource_type=asset").json()["items"]), 3)
+
+    def test_report_groups_multiple_installments_and_honors_status(self):
+        identifier = self.create(installment_count=3, first_due_date="1405/07/01", interval_months=1)
+        first = self.rows(identifier)[0]
+        self.client.post("/api/payments",json={"installment_id":first["id"],"amount":400,"paid_on":"1405/09/01"})
+        result = self.client.get("/api/financial-report?year=1405").json()
+        self.assertEqual(result["summary"]["installment_total"],3000)
+        self.assertEqual(result["summary"]["commitment_total"],3000)
+        self.assertEqual(result["summary"]["remaining_installments"],2600)
+        self.assertEqual(result["summary"]["commitment_count"],1)
+        partial = self.client.get("/api/financial-report?month=1405-07&status=partial").json()
+        self.assertEqual(partial["summary"]["remaining_installments"],600)
+        self.assertEqual(len(partial["items"]),2)
+        later = self.client.get("/api/financial-report?month=1405-08&record_type=installment").json()
+        self.assertEqual(later["items"][0]["installment_number"],2)
+        self.assertEqual(later["items"][0]["installment_count"],3)
+        self.assertEqual(len(self.client.get("/api/financial-report?year=1405&record_type=commitment").json()["items"]),1)
+
+    def test_report_transactions_filters_and_no_double_counting(self):
+        self.create(first_due_date="1405/07/01", interval_months=1)
+        identifiers = []
+        for kind, amount, status in (("income",10000,"paid"),("expense",2000,"paid"),("expense",500,"unpaid"),("expense",999,"cancelled")):
+            payload = dict(title="آزمایشی", transaction_type=kind, amount=amount, occurred_on="1405/07/01", counterparty="نمونه", status=status)
+            response = self.client.post("/api/transactions",json=payload)
+            self.assertEqual(response.status_code,201,response.text)
+            identifiers.append(response.json()["id"])
+        report = self.client.get("/api/financial-report?month=1405-07").json()
+        summary = report["summary"]
+        self.assertEqual((summary["income"],summary["expense"],summary["net"],summary["realized_net"]),(10000,2500,7500,8000))
+        self.assertEqual((summary["installment_total"],summary["commitment_total"],summary["after_installments"]),(1000,1000,6500))
+        self.assertEqual((summary["total_expenses"],summary["monthly_balance"]),(3500,6500))
+        self.assertEqual((summary["installment_count"],summary["commitment_count"]),(1,1))
+        self.assertEqual(len(report["items"]),6)
+        dashboard = self.client.get("/api/dashboard?month=1405-07").json()
+        self.assertEqual(dashboard["expense"],2000)
+        filtered = self.client.get("/api/financial-report",params={"year":1405,"start_date":"1405/07/01","end_date":"1405/07/01","counterparty":"نمونه","min_amount":9000}).json()
+        self.assertEqual(len(filtered["items"]),1)
+        self.assertEqual(filtered["summary"]["net"],10000)
+        self.assertEqual(self.client.get("/api/financial-report?month=1405-13").status_code,422)
+        self.assertEqual(self.client.get("/api/financial-report?min_amount=100&max_amount=1").status_code,422)
+        payload.update(title="ویرایش",transaction_type="income",amount=4000,status="paid")
+        self.assertEqual(self.client.patch(f"/api/transactions/{identifiers[0]}",json=payload).status_code,200)
+        self.assertEqual(self.client.delete(f"/api/transactions/{identifiers[1]}").status_code,422)
+        self.assertEqual(self.client.delete(f"/api/transactions/{identifiers[1]}?confirm=true").status_code,200)
+        self.assertEqual(self.client.get("/api/financial-report?month=1405-07").json()["summary"]["net"],3500)
+
     def create(self, **changes):
         payload = dict(title="وام نمونه", kind="وام", installment_amount=1000,
                        installment_count=3, first_due_date="1405/07/01", interval_months=2)

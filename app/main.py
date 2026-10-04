@@ -13,7 +13,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from .config import APP_NAME, APP_VERSION, LOCAL_HOSTS
 from .database import RESOURCE_DIR, create_database_backup, get_setting, initialize_database
-from .routers import commitments, dashboard, imports, settings, transactions
+from .routers import commitments, dashboard, imports, settings, transactions, assets, reports
 from .services.finance import FinanceError
 
 logging.basicConfig(level=logging.INFO)
@@ -57,6 +57,8 @@ app.add_middleware(TrustedHostMiddleware, allowed_hosts=[*LOCAL_HOSTS])
 STATIC_DIR = RESOURCE_DIR / "static"
 
 app.include_router(transactions.router)
+app.include_router(assets.router)
+app.include_router(reports.router)
 app.include_router(commitments.router)
 app.include_router(dashboard.router)
 app.include_router(settings.router)

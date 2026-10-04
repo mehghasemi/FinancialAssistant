@@ -124,11 +124,11 @@ class FinancialFlowTests(unittest.TestCase):
     def test_installment_filter_by_commitment_and_status(self):
         first = commitments.create_commitment(schemas.CommitmentInput(
             title="وام اول", kind="وام", installment_amount=1_000_000,
-            first_due_date=date(2026, 10, 1), installment_count=1,
+            first_due_date=date.today(), installment_count=1,
         ))
         commitments.create_commitment(schemas.CommitmentInput(
             title="وام دوم", kind="وام", installment_amount=2_000_000,
-            first_due_date=date(2026, 10, 1), installment_count=1,
+            first_due_date=date.today(), installment_count=1,
         ))
         filtered = commitments.installments(commitment_id=first["id"], status="unpaid")
         self.assertEqual(len(filtered), 1)

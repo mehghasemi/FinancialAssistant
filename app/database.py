@@ -226,6 +226,15 @@ def initialize_database() -> None:
                 db.execute("UPDATE app_settings SET setting_value = ? WHERE setting_key = 'backup_directory'", (str(DATA_DIR / "backups"),))
                 db.execute("INSERT OR REPLACE INTO app_settings(setting_key, setting_value) VALUES ('portable_data_directory', ?)", (location,))
 
+        db.execute("""INSERT OR IGNORE INTO release_history(version, released_at, title, description, affected_areas)
+                   VALUES ('0.19.0', '2026-10-04T12:00:00+03:30', 'دارایی‌ها و گزارش مالی یکپارچه',
+                           'نمایش آخرین تغییر اطلاعات؛ مدیریت دارایی و تاریخچهٔ ارزش؛ ویرایش و حذف درآمد و هزینه؛ گزارش فیلترپذیر اقساط و تعهدات بدون دوباره‌شماری؛ ورود زندهٔ مبالغ فارسی و مبلغ به حروف.', 'دارایی‌ها، تراکنش‌ها، گزارش و نمایش اعداد')""")
+        db.execute("""INSERT OR IGNORE INTO release_history(version, released_at, title, description, affected_areas)
+                   VALUES ('0.20.0', '2026-10-04T18:00:00+03:30', 'جمع‌بندی هزینه‌ها و جدول‌های مرتب‌شونده',
+                           'تعهدات برنامه‌ریزی‌شده، سایر هزینه‌ها و مجموع هزینه‌ها؛ فرم کشویی تراکنش و مرتب‌سازی جدول‌ها.', 'گزارش مالی و رابط کاربری')""")
+        db.execute("""INSERT OR IGNORE INTO release_history(version, released_at, title, description, affected_areas)
+                   VALUES ('0.20.1', '2026-10-04T19:00:00+03:30', 'مبلغ به حروف فقط هنگام ورود اطلاعات',
+                           'حذف مبلغ به حروف از جدول‌ها و خلاصه‌ها و حفظ آن در فیلدهای ورود و ویرایش مبلغ.', 'رابط کاربری')""")
         accounts = ("حساب اصلی", "کارت بانکی", "نقدی")
         db.execute("""INSERT OR IGNORE INTO release_history(version, released_at, title, description, affected_areas)
                    VALUES ('0.18.0', '2026-09-30T20:00:00+03:30', 'اجرای قابل‌حمل با اطلاعات کنار برنامه',
@@ -380,7 +389,7 @@ def clear_financial_data() -> Path:
     """Back up under a write lock, then atomically clear operational data."""
     with connection(write=True) as db:
         backup_path = create_database_backup(DATA_DIR / "backups")
-        tables = ("payments", "installments", "commitments", "transactions", "budget_items", "imported_rows", "import_runs")
+        tables = ("asset_values", "assets", "payments", "installments", "commitments", "transactions", "budget_items", "imported_rows", "import_runs")
         counts = {table: db.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0] for table in tables}
         db.execute("UPDATE audit_logs SET resource_type = 'archived_' || resource_type WHERE resource_type NOT LIKE 'archived_%'")
         for table in tables:
