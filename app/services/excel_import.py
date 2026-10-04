@@ -193,7 +193,7 @@ def _save_groups(groups) -> dict:
                 db.execute(
                     """INSERT OR IGNORE INTO installments(commitment_id, due_date, amount, note, source_key)
                        VALUES (?, ?, ?, ?, ?)""",
-                    (commitment_id, due_iso, amount, f"واردشده از Sheet4 اکسل (کد گروه: {group_index:03d})", installment_key),
+                    (commitment_id, due_iso, amount, "", installment_key),
                 )
                 installment_row = db.execute(
                     "SELECT id FROM installments WHERE source_key = ?", (installment_key,)
@@ -209,7 +209,7 @@ def _save_groups(groups) -> dict:
                            VALUES (?, ?, ?, NULL, ?, ?)""",
                         (
                             installment_row["id"], amount, due_iso,
-                            "واردشده از اکسل؛ تاریخ پرداخت در فایل موجود نبود، سررسید به‌عنوان تاریخ پرداخت ثبت شد.",
+                            "تاریخ پرداخت در فایل موجود نبود، سررسید به‌عنوان تاریخ پرداخت ثبت شد.",
                             payment_key,
                         ),
                     )

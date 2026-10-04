@@ -180,7 +180,7 @@ def import_commitments(db, import_id: int, values_workbook) -> tuple[int, int, i
         db.execute(
             """INSERT OR IGNORE INTO commitments(title, kind, total_amount, source_key, unique_code)
                VALUES (?, ?, ?, ?, ?)""",
-            (title, "تعهد مالی واردشده از اکسل", total, commitment_key, database.allocate_unique_code(db)),
+            (title, "تعهد مالی", total, commitment_key, database.allocate_unique_code(db)),
         )
         commitment_id = db.execute(
             "SELECT id FROM commitments WHERE source_key = ?", (commitment_key,)
@@ -188,9 +188,9 @@ def import_commitments(db, import_id: int, values_workbook) -> tuple[int, int, i
         commitment_count += 1
         for row_number, (due_date, amount, status, payment_month) in rows:
             source_key = f"installment:تعهدات مالی:{row_number}"
-            note = "واردشده از شیت تعهدات مالی"
+            note = ""
             if payment_month:
-                note += f" | ماه پرداخت ثبت‌شده در اکسل: {payment_month}"
+                note += f"ماه پرداخت ثبت‌شده در اکسل: {payment_month}"
             db.execute(
                 """INSERT OR IGNORE INTO installments
                    (commitment_id, due_date, amount, note, source_key)
@@ -213,7 +213,7 @@ def import_commitments(db, import_id: int, values_workbook) -> tuple[int, int, i
                         installment["id"],
                         amount,
                         due_date,
-                        "واردشده از اکسل؛ تاریخ پرداخت در فایل موجود نبود، سررسید به‌عنوان تاریخ ثبت شد.",
+                        "تاریخ پرداخت در فایل موجود نبود، سررسید به‌عنوان تاریخ ثبت شد.",
                         payment_key,
                     ),
                 )
@@ -224,10 +224,7 @@ def import_commitments(db, import_id: int, values_workbook) -> tuple[int, int, i
 def backup_database() -> Path | None:
     if not database.DATABASE_PATH.exists():
         return None
-    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    backup = database.DATABASE_PATH.with_name(f"financial_assistant_before_import_{stamp}.db")
-    shutil.copy2(database.DATABASE_PATH, backup)
-    return backup
+    return database.create_database_backup(database.DATA_DIR / "backups")
 
 
 def run_import(workbook_path: Path, create_backup: bool = True) -> dict[str, Any]:

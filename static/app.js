@@ -1,4 +1,4 @@
-const api = (path, options = {}) => fetch(`/api${path}`, { headers: { "Content-Type": "application/json" }, ...options }).then(async response => {
+const api = (path, options = {}) => fetch(`/api${path}`, { headers: { "Content-Type": "application/json" }, ...options }).catch(() => { throw new Error("ارتباط با برنامه قطع شده است. فایل FinancialAssistant.exe را اجرا کنید و صفحه را دوباره بارگذاری کنید."); }).then(async response => {
   const data = await response.json();
   if (!response.ok) throw new Error(data.detail || "خطا در ارتباط با برنامه");
   if (options.method && options.method !== "GET" && typeof loadDataStatus === "function") loadDataStatus();
@@ -154,7 +154,7 @@ async function loadDashboard() {
   const data = await api(`/dashboard?month=${document.getElementById("dashboardMonth").value}`);
   if (data.month !== document.getElementById("dashboardMonth").value) return;
   dashboardData = data;
-  [["incomeValue", data.income], ["expenseValue", data.expense], ["remainingValue", data.remaining_commitments], ["plannedValue", data.planned_commitments], ["paidValue", data.paid_commitments]].forEach(([id, value]) => {
+  [["dashboardPlanned", data.planned_commitments], ["dashboardTotal", data.total_expenses], ["dashboardBalance", data.monthly_balance], ["incomeValue", data.income], ["expenseValue", data.expense], ["remainingValue", data.remaining_commitments], ["plannedValue", data.planned_commitments], ["paidValue", data.paid_commitments]].forEach(([id, value]) => {
     document.getElementById(id).innerHTML = `${Number(value || 0).toLocaleString("fa-IR")} <span class="currency-unit">تومان</span>`;
   });
   document.getElementById("dashboardPeriod").textContent = `خلاصهٔ ${data.month_label}`;

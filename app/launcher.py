@@ -3,6 +3,8 @@ from __future__ import annotations
 import argparse
 import json
 import socket
+import os
+import logging
 import threading
 import time
 from urllib.error import URLError
@@ -22,6 +24,38 @@ def open_application(server, url: str) -> None:
             webbrowser.open_new_tab(url)
             return
         time.sleep(0.1)
+
+
+
+def install_close_handler(server, stopped: threading.Event):
+    """Windows sends CTRL_CLOSE_EVENT for the console window's close button."""
+    if os.name != "nt":
+        return lambda: None
+    import ctypes
+    from ctypes import wintypes
+    callback_type = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.DWORD)
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel.SetConsoleCtrlHandler.argtypes = [callback_type, wintypes.BOOL]
+    kernel.SetConsoleCtrlHandler.restype = wintypes.BOOL
+
+    def on_close(event):
+        if event not in (2, 5, 6):  # close, logoff, shutdown
+            return False  # Uvicorn handles Ctrl+C normally.
+        server.should_exit = True
+        # Keep the console handler alive while the server drains requests and
+        # completes its lifespan backup, within Windows' close-event deadline.
+        if not stopped.wait(4):
+            logging.error("Application shutdown exceeded the console close deadline")
+        return True
+
+    callback = callback_type(on_close)
+    if not kernel.SetConsoleCtrlHandler(callback, True):
+        raise ctypes.WinError(ctypes.get_last_error())
+
+    def remove():
+        # Closure retains the callback for the entire server lifetime.
+        kernel.SetConsoleCtrlHandler(callback, False)
+    return remove
 
 
 def main() -> int:
@@ -52,11 +86,17 @@ def main() -> int:
         from .database import DATA_DIR
         server = uvicorn.Server(uvicorn.Config(
             app, host=HOST, port=PORT, loop="asyncio", http="h11", ws="none",
-            log_level="warning", log_config=None, access_log=False,
+            log_level="warning", log_config=None, access_log=False, timeout_graceful_shutdown=1,
         ))
         print(f"FinancialAssistant: {url}\nData: {DATA_DIR}\nKeep this window open. Press Ctrl+C here to exit safely.")
         threading.Thread(target=open_application, args=(server, url), daemon=True).start()
-        server.run(sockets=[listener])
+        stopped = threading.Event()
+        remove_handler = install_close_handler(server, stopped)
+        try:
+            server.run(sockets=[listener])
+        finally:
+            stopped.set()
+            remove_handler()
     return 0
 
 

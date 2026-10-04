@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>همراه مالی</title>
-    <link rel="stylesheet" href="/static/styles.css?v=0.20.1" />
+    <link rel="stylesheet" href="/static/styles.css?v=0.21.1" />
   </head>
   <body>
     <div class="shell">
@@ -28,13 +28,16 @@
           <header class="dashboard-header"><div><p class="eyebrow">همراه مالی · نمای کلی</p><h1>وضعیت مالی، در یک نگاه</h1><p>خلاصهٔ ماه را ببینید و پرداخت بعدی را پیگیری کنید.</p></div><div class="dashboard-tools"><label class="month-filter">ماه شمسی <select id="dashboardMonth"></select></label><button class="primary" data-page="transactions">＋ ثبت درآمد / هزینه</button></div></header>
           <p class="dashboard-period" id="dashboardPeriod">خلاصهٔ ماه انتخابی</p>
           <div class="stats dashboard-stats">
-            <article class="income-card"><span class="stat-symbol" aria-hidden="true">↙</span><small>درآمد ماه</small><strong id="incomeValue">—</strong><p>درآمد ثبت‌شده در ماه انتخابی</p></article>
-            <article class="expense-card"><span class="stat-symbol" aria-hidden="true">↗</span><small>هزینهٔ ثبت‌شده</small><strong id="expenseValue">—</strong><p>هزینهٔ واقعی در ماه انتخابی</p></article>
+            <article class="income-card"><span class="stat-symbol" aria-hidden="true">↙</span><small>درآمد ماه</small><strong id="incomeValue">—</strong><p>انجام‌شده و در انتظار؛ بدون لغوشده‌ها</p></article>
+            <article class="expense-card"><span class="stat-symbol" aria-hidden="true">↗</span><small>سایر هزینه‌های ماه</small><strong id="expenseValue">—</strong><p>خارج از اقساط؛ انجام‌شده و در انتظار</p></article>
             <article class="remaining-card"><span class="stat-symbol" aria-hidden="true">◷</span><small>ماندهٔ اقساط ماه</small><strong id="remainingValue">—</strong><p>بر اساس سررسید ماه انتخابی</p></article>
+            <article><small>تعهدات برنامه‌ریزی‌شده</small><strong id="dashboardPlanned">—</strong><p>جمع اقساط با سررسید این ماه</p></article>
+            <article><small>مجموع هزینه‌های ماه</small><strong id="dashboardTotal">—</strong><p>تعهدات برنامه‌ریزی‌شده + سایر هزینه‌ها</p></article>
+            <article><small>ماندهٔ ماه</small><strong id="dashboardBalance">—</strong><p>درآمد − مجموع هزینه‌ها؛ موجودی حساب نیست</p></article>
           </div>
           <div class="dashboard-grid">
             <article class="panel action-panel"><div class="panel-title"><div><h2>نیازمند اقدام</h2><p class="panel-caption">بر اساس امروز، مستقل از ماه انتخابی</p></div><span class="today-label" id="dashboardToday"></span></div><div class="action-tabs" role="group" aria-label="بازهٔ سررسید"><button type="button" data-action-period="overdue" aria-pressed="true" aria-controls="dashboardActionList">معوق <span id="overdueCount">۰</span></button><button type="button" data-action-period="today" aria-pressed="false" aria-controls="dashboardActionList">امروز <span id="todayCount">۰</span></button><button type="button" data-action-period="week" aria-pressed="false" aria-controls="dashboardActionList">۷ روز آینده <span id="weekCount">۰</span></button></div><p id="dashboardActionSummary" class="panel-caption" role="status"></p><div id="dashboardActionList" class="list" aria-live="polite"></div><button id="dashboardShowAll" class="quiet action-more" type="button" aria-expanded="false" aria-controls="dashboardActionList" hidden>مشاهدهٔ همه</button></article>
-            <article class="panel progress-panel"><div class="panel-title"><h2>پیشرفت پرداخت ماه</h2></div><p id="commitmentSummary" class="panel-caption"></p><strong id="commitmentPercent" class="progress-percent">—</strong><p class="panel-caption" id="commitmentProgressLabel">از مبلغ اقساط ماه انتخابی پرداخت شده</p><div class="progress" role="progressbar" aria-label="پیشرفت پرداخت اقساط ماه انتخابی" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="commitmentProgressTrack"><i id="commitmentProgress"></i></div><div class="progress-totals"><span>مجموع اقساط <b id="plannedValue">—</b></span><span>پرداخت‌شده <b id="paidValue">—</b></span></div><button id="dashboardMonthDetails" type="button" class="quiet">مشاهدهٔ اقساط این ماه ←</button><details class="help dashboard-help"><summary>مبنای محاسبه چیست؟</summary><p>اقساط بر اساس تاریخ سررسید در ماه انتخابی هستند؛ پرداخت‌های همان اقساط، مستقل از تاریخ پرداخت محاسبه می‌شوند. ماندهٔ اقساط، موجودی حساب نیست.</p></details></article>
+            <article class="panel progress-panel"><div class="panel-title"><h2>پیشرفت پرداخت ماه</h2></div><p id="commitmentSummary" class="panel-caption"></p><strong id="commitmentPercent" class="progress-percent">—</strong><p class="panel-caption" id="commitmentProgressLabel">از مبلغ اقساط ماه انتخابی پرداخت شده</p><div class="progress" role="progressbar" aria-label="پیشرفت پرداخت اقساط ماه انتخابی" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="commitmentProgressTrack"><i id="commitmentProgress"></i></div><div class="progress-totals"><span>تعهدات برنامه‌ریزی‌شده <b id="plannedValue">—</b></span><span>پرداخت‌شده <b id="paidValue">—</b></span></div><button id="dashboardMonthDetails" type="button" class="quiet">مشاهدهٔ اقساط این ماه ←</button><details class="help dashboard-help"><summary>مبنای محاسبه چیست؟</summary><p>اقساط بر اساس تاریخ سررسید در ماه انتخابی هستند؛ پرداخت‌های همان اقساط، مستقل از تاریخ پرداخت محاسبه می‌شوند. ماندهٔ اقساط، موجودی حساب نیست.</p></details></article>
           </div>
         </section>
 
@@ -146,7 +149,7 @@
         </section>
         <section id="settings" class="page">
           <header><div><h1>تنظیمات سیستم</h1><p>محل و رفتار پشتیبان‌گیری دیتابیس را تعیین کنید.</p></div></header>
-          <article class="panel settings-panel"><form id="settingsForm" class="form-panel"><h2>پشتیبان‌گیری</h2><label class="toggle-field"><input id="backupEnabled" type="checkbox" /> پشتیبان خودکار هنگام شروع، هر ۱۵ دقیقه و هنگام خروج</label><div class="field"><label for="backupDirectory">مسیر ذخیرهٔ پشتیبان‌ها</label><input id="backupDirectory" maxlength="500" required /></div><div class="settings-actions"><button class="primary" type="submit">ذخیرهٔ تنظیمات</button><button class="quiet" id="manualBackup" type="button">تهیهٔ پشتیبان اکنون</button></div><p class="form-message" id="settingsMessage" role="status" aria-live="polite"></p></form></article><article class="panel settings-panel"><h2>ورود داده از اکسل</h2><p class="help-text">فایل اکسل تعهدات (Sheet4) را انتخاب کنید تا تعهدات، اقساط و پرداخت‌ها به‌صورت خودکار ثبت شوند. اجرای دوباره روی همان فایل، رکورد تکراری نمی‌سازد.</p>
+          <article class="panel settings-panel"><form id="settingsForm" class="form-panel"><h2>پشتیبان‌گیری</h2><label class="toggle-field"><input id="backupEnabled" type="checkbox" /> پشتیبان خودکار هنگام شروع، هر ۱۵ دقیقه و هنگام خروج</label><div class="field"><p class="help-text">هنگام بستن پنجرهٔ برنامه، در صورت تغییر اطلاعات پشتیبان با نام شمسی ذخیره می‌شود؛ حتی اگر پشتیبان دوره‌ای خاموش باشد.</p><label for="backupDirectory">مسیر ذخیرهٔ پشتیبان‌ها</label><input id="backupDirectory" maxlength="500" required /></div><div class="settings-actions"><button class="primary" type="submit">ذخیرهٔ تنظیمات</button><button class="quiet" id="manualBackup" type="button">تهیهٔ پشتیبان اکنون</button></div><p class="form-message" id="settingsMessage" role="status" aria-live="polite"></p></form></article><article class="panel settings-panel"><h2>ورود داده از اکسل</h2><p class="help-text">فایل اکسل تعهدات (Sheet4) را انتخاب کنید تا تعهدات، اقساط و پرداخت‌ها به‌صورت خودکار ثبت شوند. اجرای دوباره روی همان فایل، رکورد تکراری نمی‌سازد.</p>
             <p class="help-text"><a class="quiet" href="/static/templates/installments-template.xlsx" download="installments-template.xlsx">دانلود قالب اکسل</a></p>
             <details class="help">
               <summary>راهنمای تکمیل فایل اکسل و سرتیترها</summary>
@@ -179,9 +182,9 @@
       </main>
     </div>
     <template id="emptyRow"><tr><td colspan="6" class="empty-cell">هنوز داده‌ای ثبت نشده است.</td></tr></template>
-    <script src="/static/money.js?v=0.20.1"></script>
-    <script src="/static/table-sort.js?v=0.20.1"></script>
-    <script src="/static/app.js?v=0.20.1"></script>
-      <script src="/static/finance.js?v=0.20.1"></script>
+    <script src="/static/money.js?v=0.21.1"></script>
+    <script src="/static/table-sort.js?v=0.21.1"></script>
+    <script src="/static/app.js?v=0.21.1"></script>
+      <script src="/static/finance.js?v=0.21.1"></script>
   </body>
 </html>

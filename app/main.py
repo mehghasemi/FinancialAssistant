@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from .config import APP_NAME, APP_VERSION, LOCAL_HOSTS
-from .database import RESOURCE_DIR, create_database_backup, get_setting, initialize_database
+from .database import RESOURCE_DIR, create_database_backup, get_setting, initialize_database, database_fingerprint, clean_import_notes
 from .routers import commitments, dashboard, imports, settings, transactions, assets, reports
 from .services.finance import FinanceError
 
@@ -41,6 +41,8 @@ async def periodic_backups(stop: asyncio.Event) -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await asyncio.to_thread(initialize_database)
+    await asyncio.to_thread(clean_import_notes)
+    app.state.session_fingerprint = await asyncio.to_thread(database_fingerprint)
     await asyncio.to_thread(automatic_backup)
     stop = asyncio.Event()
     task = asyncio.create_task(periodic_backups(stop))
@@ -49,7 +51,8 @@ async def lifespan(app: FastAPI):
     finally:
         stop.set()
         await task
-        await asyncio.to_thread(automatic_backup)
+        if await asyncio.to_thread(database_fingerprint) != app.state.session_fingerprint:
+            await asyncio.to_thread(create_database_backup, get_setting("backup_directory", ""))
 
 
 app = FastAPI(title=APP_NAME, version=APP_VERSION, lifespan=lifespan)

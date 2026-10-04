@@ -21,7 +21,7 @@ def dashboard(month: str | None = Query(default=None, pattern=r"^\d{4}-\d{2}$"))
     with connection() as db:
         transaction_data = db.execute(
             """SELECT transaction_type, COALESCE(SUM(amount), 0) AS total
-               FROM transactions WHERE status = 'paid' AND occurred_on >= ? AND occurred_on < ? GROUP BY transaction_type""",
+               FROM transactions WHERE status != 'cancelled' AND occurred_on >= ? AND occurred_on < ? GROUP BY transaction_type""",
             (start, end),
         ).fetchall()
 
@@ -46,6 +46,8 @@ def dashboard(month: str | None = Query(default=None, pattern=r"^\d{4}-\d{2}$"))
         "month_label": jalali_month_label(selected_month),
         "income": totals.get("income", 0),
         "expense": totals.get("expense", 0),
+        "total_expenses": totals.get("expense", 0) + planned,
+        "monthly_balance": totals.get("income", 0) - totals.get("expense", 0) - planned,
         "planned_commitments": planned,
         "paid_commitments": sum(item["paid_amount"] for item in installment_data),
         "remaining_commitments": remaining,

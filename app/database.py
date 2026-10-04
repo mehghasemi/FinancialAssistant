@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import hashlib
+import re
+import jdatetime
 import sqlite3
 import json
 from contextlib import closing, contextmanager
@@ -32,9 +35,9 @@ def write_audit_log(db: sqlite3.Connection, action: str, resource_type: str, res
 
 
 def create_database_backup(destination: str | Path) -> Path:
-    backup_dir = Path(destination).expanduser().resolve()
+    backup_dir = Path(destination or DATA_DIR / "backups").expanduser().resolve()
     backup_dir.mkdir(parents=True, exist_ok=True)
-    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
+    timestamp = jdatetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S-%f")
     backup_path = backup_dir / f"financial_assistant_backup_{timestamp}.db"
     if not DATABASE_PATH.is_file():
         raise FileNotFoundError(DATABASE_PATH)
@@ -235,6 +238,12 @@ def initialize_database() -> None:
         db.execute("""INSERT OR IGNORE INTO release_history(version, released_at, title, description, affected_areas)
                    VALUES ('0.20.1', '2026-10-04T19:00:00+03:30', 'مبلغ به حروف فقط هنگام ورود اطلاعات',
                            'حذف مبلغ به حروف از جدول‌ها و خلاصه‌ها و حفظ آن در فیلدهای ورود و ویرایش مبلغ.', 'رابط کاربری')""")
+        db.execute("""INSERT OR IGNORE INTO release_history(version, released_at, title, description, affected_areas)
+                   VALUES ('0.21.0', '2026-10-04T20:00:00+03:30', 'خروج امن و داشبورد یکپارچه',
+                           'پشتیبان هنگام خروج در صورت تغییر، نام شمسی بکاپ و پاک‌سازی توضیحات خودکار اکسل؛ خلاصهٔ یکپارچهٔ هزینه‌ها.', 'پشتیبان و داشبورد')""")
+        db.execute("""INSERT OR IGNORE INTO release_history(version, released_at, title, description, affected_areas)
+                   VALUES ('0.21.1', '2026-10-04T21:00:00+03:30', 'بکاپ با بستن برنامه و جدول فشرده',
+                           'حذف دکمهٔ خروج؛ پشتیبان هنگام بستن پنجرهٔ EXE؛ پیام فارسی قطع اتصال؛ وضعیت متنی رنگی و سطرهای فشرده.', 'اجرا و جدول‌ها')""")
         accounts = ("حساب اصلی", "کارت بانکی", "نقدی")
         db.execute("""INSERT OR IGNORE INTO release_history(version, released_at, title, description, affected_areas)
                    VALUES ('0.18.0', '2026-09-30T20:00:00+03:30', 'اجرای قابل‌حمل با اطلاعات کنار برنامه',
@@ -405,3 +414,35 @@ def set_setting(key: str, value: str) -> None:
                ON CONFLICT(setting_key) DO UPDATE SET setting_value = excluded.setting_value, updated_at = CURRENT_TIMESTAMP""",
             (key, value),
         )
+
+
+def database_fingerprint() -> str:
+    """Snapshot fingerprint detects committed writes, including imports and deletes."""
+    with connection() as db:
+        return hashlib.sha256(db.serialize()).hexdigest()
+
+
+def clean_import_notes() -> int:
+    patterns = (
+        r"واردشده از Sheet4 اکسل(?: \(کد گروه: [0-9۰-۹]+\))?",
+        r"واردشده از شیت تعهدات مالی",
+        r"واردشده از اکسل[؛،]?\s*",
+    )
+    changes = []
+    with connection() as db:
+        for table in ("installments", "payments", "transactions", "assets"):
+            for row in db.execute(f"SELECT id, note FROM {table} WHERE note LIKE '%واردشده از%'"):
+                cleaned = row["note"]
+                for pattern in patterns:
+                    cleaned = re.sub(pattern, "", cleaned)
+                cleaned = cleaned.strip(" |؛،\n")
+                if cleaned != row["note"]:
+                    changes.append((table, row["id"], row["note"], cleaned))
+    if not changes:
+        return 0
+    create_database_backup(get_setting("backup_directory", ""))
+    with connection(write=True) as db:
+        for table, identifier, before, after in changes:
+            db.execute(f"UPDATE {table} SET note = ? WHERE id = ? AND note = ?", (after, identifier, before))
+            write_audit_log(db, "update", table, identifier, json.dumps({"before": {"note": before}, "after": {"note": after}}, ensure_ascii=False))
+    return len(changes)

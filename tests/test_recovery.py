@@ -10,6 +10,63 @@ from app.services.backups import restore_backup
 
 
 class RecoveryTests(unittest.TestCase):
+    @unittest.skipUnless(__import__("os").name == "nt", "Windows console handler")
+    def test_console_close_waits_for_server_shutdown(self):
+        import ctypes
+        import threading
+        from types import SimpleNamespace
+        from unittest.mock import Mock
+        from app.launcher import install_close_handler
+        server = SimpleNamespace(should_exit=False)
+        stopped = threading.Event()
+        kernel = SimpleNamespace(SetConsoleCtrlHandler=Mock(return_value=True))
+        with patch.object(ctypes, "WinDLL", return_value=kernel):
+            remove = install_close_handler(server, stopped)
+            callback = kernel.SetConsoleCtrlHandler.call_args.args[0]
+            self.assertFalse(callback(0))
+            worker = threading.Thread(target=lambda: callback(2))
+            worker.start()
+            try:
+                import time
+                deadline = time.monotonic() + 1
+                while not server.should_exit and time.monotonic() < deadline:
+                    time.sleep(0.01)
+                self.assertTrue(server.should_exit)
+                self.assertTrue(worker.is_alive())
+            finally:
+                stopped.set()
+                worker.join(2)
+                remove()
+            self.assertFalse(worker.is_alive())
+            self.assertFalse(kernel.SetConsoleCtrlHandler.call_args.args[1])
+
+    def test_import_note_cleanup_preserves_user_text_and_is_idempotent(self):
+        with database.connection() as db:
+            db.execute("INSERT INTO transactions(transaction_type, amount, occurred_on, note) VALUES ('expense',100,'2026-10-04',?)", ("واردشده از Sheet4 اکسل (کد گروه: 001) | یادداشت من",))
+        self.assertEqual(database.clean_import_notes(), 1)
+        self.assertEqual(database.clean_import_notes(), 0)
+        with database.connection() as db:
+            self.assertEqual(db.execute("SELECT note FROM transactions").fetchone()[0], "یادداشت من")
+        backups = list((self.directory / "backups").glob("*.db"))
+        self.assertEqual(len(backups), 1)
+        import jdatetime
+        self.assertIn(str(jdatetime.date.today().year), backups[0].name)
+        with closing(sqlite3.connect(backups[0])) as db:
+            self.assertIn("Sheet4", db.execute("SELECT note FROM transactions").fetchone()[0])
+
+    def test_shutdown_backup_only_when_changed(self):
+        import asyncio
+        from app import main
+        async def exercise():
+            with patch.object(main, "automatic_backup"), patch.object(main, "create_database_backup") as backup:
+                async with main.lifespan(main.app):
+                    pass
+                backup.assert_not_called()
+                async with main.lifespan(main.app):
+                    database.set_setting("test_change", "changed")
+                self.assertEqual(backup.call_count, 1)
+        asyncio.run(exercise())
+
     def test_version_four_upgrade_preserves_money_and_backfills_titles(self):
         with database.connection() as db:
             db.execute("INSERT INTO transactions(transaction_type,amount,occurred_on,note) VALUES ('income',1234567,'2026-09-23','قدیمی')")
