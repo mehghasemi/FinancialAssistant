@@ -48,6 +48,10 @@ def main() -> int:
         result = subprocess.run([node, str(ROOT / "tests/test_money.js")], cwd=ROOT)
         if result.returncode:
             return result.returncode
+    if node and args.scope in ("all", "calendar", "api"):
+        result = subprocess.run([node, str(ROOT / "tests/test_jalali_picker.js")], cwd=ROOT)
+        if result.returncode:
+            return result.returncode
     suite = unittest.defaultTestLoader.discover(str(ROOT / "tests"), pattern=PATTERNS[args.scope])
     result = unittest.TextTestRunner(verbosity=1).run(suite)
     return 0 if result.wasSuccessful() else 1

@@ -40,6 +40,43 @@ class RecoveryTests(unittest.TestCase):
             self.assertFalse(worker.is_alive())
             self.assertFalse(kernel.SetConsoleCtrlHandler.call_args.args[1])
 
+    def test_cash_and_bank_migration_roundtrip(self):
+        with database.connection() as db:
+            db.execute("INSERT INTO transactions(transaction_type,amount,occurred_on,title,status) VALUES ('income',100,'2026-10-01','قدیمی','paid')")
+            for column in ('bank_id','account_number','opening_amount','opening_date'):
+                db.execute(f"ALTER TABLE accounts DROP COLUMN {column}")
+            db.execute("DROP TABLE banks")
+            db.execute("DROP TABLE cash_opening")
+            db.execute("ALTER TABLE transactions DROP COLUMN settled_on")
+            db.execute("ALTER TABLE transactions DROP COLUMN settled_date_assumed")
+            db.execute("PRAGMA user_version=5")
+        database.initialize_database()
+        with database.connection() as db:
+            self.assertEqual(tuple(db.execute("SELECT amount,settled_on,settled_date_assumed FROM transactions").fetchone()),(100,'2026-10-01',1))
+            db.execute("UPDATE accounts SET opening_amount=500,opening_date='2026-10-01'")
+        destination=self.directory/'restored-current.db'
+        restore_backup(self.path,destination)
+        with closing(sqlite3.connect(destination)) as db:
+            self.assertEqual(db.execute("SELECT opening_amount FROM accounts LIMIT 1").fetchone()[0],500)
+
+    def test_version_five_upgrade_preserves_transactions_and_backup(self):
+        with database.connection() as db:
+            db.execute("INSERT INTO transactions(transaction_type,amount,occurred_on,title,status) VALUES ('expense',1234,'2026-10-01','قدیمی','paid')")
+            db.execute("DROP INDEX idx_transaction_payment")
+            db.execute("ALTER TABLE transactions DROP COLUMN payment_id")
+            db.execute("DROP TABLE monthly_budgets")
+            db.execute("PRAGMA user_version=4")
+        database.initialize_database()
+        database.initialize_database()
+        with database.connection() as db:
+            self.assertEqual(tuple(db.execute("SELECT amount,title,status,payment_id FROM transactions").fetchone()), (1234,"قدیمی","paid",None))
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM monthly_budgets").fetchone()[0],0)
+        snapshots=list((self.directory / "backups").glob("*.db"))
+        self.assertEqual(len(snapshots),1)
+        with closing(sqlite3.connect(snapshots[0])) as db:
+            self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0],4)
+        restore_backup(self.path,self.directory / "restored-v5.db")
+
     def test_import_note_cleanup_preserves_user_text_and_is_idempotent(self):
         with database.connection() as db:
             db.execute("INSERT INTO transactions(transaction_type, amount, occurred_on, note) VALUES ('expense',100,'2026-10-04',?)", ("واردشده از Sheet4 اکسل (کد گروه: 001) | یادداشت من",))
@@ -84,7 +121,7 @@ class RecoveryTests(unittest.TestCase):
         restored = self.directory / "restored.db"
         restore_backup(self.path, restored)
         with closing(sqlite3.connect(restored)) as db:
-            self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0],4)
+            self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0],migrations.SCHEMA_VERSION)
 
     def test_portable_migration_preserves_source_and_existing_destination(self):
         legacy = self.directory / "legacy"

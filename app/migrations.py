@@ -5,7 +5,7 @@ import sqlite3
 import jdatetime
 from datetime import date
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 7
 
 
 def _ensure_column(db: sqlite3.Connection, table: str, definition: str) -> None:
@@ -117,7 +117,31 @@ def _assets_and_transactions(db):
     db.execute("CREATE INDEX IF NOT EXISTS idx_asset_values_asset ON asset_values(asset_id, id)")
 
 
-MIGRATIONS = (_legacy_schema, _schedule_interval, _backfill_repayment, _assets_and_transactions)
+
+def _payment_links_and_budgets(db):
+    _ensure_column(db, "transactions", "payment_id INTEGER REFERENCES payments(id) ON DELETE SET NULL")
+    db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_transaction_payment ON transactions(payment_id) WHERE payment_id IS NOT NULL")
+    db.execute("""CREATE TABLE IF NOT EXISTS monthly_budgets (
+        month TEXT NOT NULL, category_id INTEGER NOT NULL REFERENCES categories(id),
+        amount INTEGER NOT NULL CHECK(amount >= 0), PRIMARY KEY(month, category_id))""")
+
+
+
+def _cash_dates_and_opening(db):
+    _ensure_column(db, "transactions", "settled_on TEXT")
+    _ensure_column(db, "transactions", "settled_date_assumed INTEGER NOT NULL DEFAULT 1")
+    db.execute("UPDATE transactions SET settled_on=occurred_on WHERE status='paid' AND settled_on IS NULL")
+    db.execute("""CREATE TABLE IF NOT EXISTS cash_opening (
+        id INTEGER PRIMARY KEY CHECK(id=1), amount INTEGER NOT NULL CHECK(amount>=0), as_of_date TEXT NOT NULL)""")
+
+
+def _bank_accounts(db):
+    db.execute("CREATE TABLE IF NOT EXISTS banks (id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE)")
+    for definition in ("bank_id INTEGER REFERENCES banks(id)", "account_number TEXT NOT NULL DEFAULT ''", "opening_amount INTEGER CHECK(opening_amount>=0)", "opening_date TEXT"):
+        _ensure_column(db, "accounts", definition)
+
+
+MIGRATIONS = (_legacy_schema, _schedule_interval, _backfill_repayment, _assets_and_transactions, _payment_links_and_budgets, _cash_dates_and_opening, _bank_accounts)
 
 
 def run_migrations(db):

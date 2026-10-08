@@ -1,6 +1,8 @@
 /* Sort only data rows; inline editors travel with their parent row. */
 const TableSort = (() => {
   const columns = {
+    cashActivityRows: ["date","date","text","text","number","number"],
+    budgetRows: ["text","number","number","number","number","number","text"],
     transactionRows: ["date","text","text","text","number","text","text","text","text"],
     installmentRows: ["text","date","number","number","number","text"],
     assetRows: ["text","text","date","number","number","number","text"],
@@ -43,6 +45,7 @@ const TableSort = (() => {
     for(const group of groups) for(const row of group.rows) body.append(row);
   }
   function refresh(id) {
+    if(id==="baseRows") columns.baseRows=document.getElementById("baseResource").value==="accounts" ? ["text","text","text","date","number","number"] : document.getElementById("baseResource").value==="categories" ? ["text","text"] : ["text"];
     if(!columns[id]) return;
     const body=document.getElementById(id), table=body.closest("table");
     const headers=Array.from(table.tHead.rows[0].cells);

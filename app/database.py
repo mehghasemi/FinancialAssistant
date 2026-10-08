@@ -10,6 +10,8 @@ from datetime import datetime
 import os
 from pathlib import Path
 import sys
+from threading import RLock
+from functools import wraps
 
 from .migrations import SCHEMA_VERSION, allocate_unique_code, run_migrations
 
@@ -26,6 +28,17 @@ DATA_DIR = Path(os.getenv("FINANCIAL_ASSISTANT_DATA_DIR", default_data_dir))
 DATABASE_PATH = DATA_DIR / "financial_assistant.db"
 
 
+DATABASE_LOCK = RLock()
+
+
+def database_operation(function):
+    @wraps(function)
+    def locked(*args, **kwargs):
+        with DATABASE_LOCK:
+            return function(*args, **kwargs)
+    return locked
+
+
 def write_audit_log(db: sqlite3.Connection, action: str, resource_type: str, resource_id: int, details: str = "") -> None:
     db.execute(
         """INSERT INTO audit_logs(action, resource_type, resource_id, details, created_at)
@@ -34,6 +47,7 @@ def write_audit_log(db: sqlite3.Connection, action: str, resource_type: str, res
     )
 
 
+@database_operation
 def create_database_backup(destination: str | Path) -> Path:
     backup_dir = Path(destination or DATA_DIR / "backups").expanduser().resolve()
     backup_dir.mkdir(parents=True, exist_ok=True)
@@ -52,37 +66,40 @@ def create_database_backup(destination: str | Path) -> Path:
 
 
 @contextmanager
-def connection(*, write: bool = False):
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-    db = sqlite3.connect(DATABASE_PATH)
-    db.row_factory = sqlite3.Row
-    db.execute("PRAGMA foreign_keys = ON")
-    try:
-        if write:
-            db.execute("BEGIN IMMEDIATE")
-        yield db
-        db.commit()
-    except Exception:
-        db.rollback()
-        raise
-    finally:
-        db.close()
+def connection(*, write: bool = False, database_path: Path | None = None):
+    with DATABASE_LOCK:
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        db = sqlite3.connect(database_path or DATABASE_PATH)
+        db.row_factory = sqlite3.Row
+        db.execute("PRAGMA foreign_keys = ON")
+        try:
+            if write:
+                db.execute("BEGIN IMMEDIATE")
+            yield db
+            db.commit()
+        except Exception:
+            db.rollback()
+            raise
+        finally:
+            db.close()
 
 
-def initialize_database() -> None:
-    if PORTABLE_MODE and not DATABASE_PATH.exists():
+@database_operation
+def initialize_database(*, target_path: Path | None = None) -> None:
+    candidate = target_path or DATABASE_PATH
+    if target_path is None and PORTABLE_MODE and not candidate.exists():
         legacy = LEGACY_DATA_DIR / "financial_assistant.db"
         if legacy.is_file():
             from .services.backups import restore_backup
-            restore_backup(legacy, DATABASE_PATH)
-    if DATABASE_PATH.exists():
-        with closing(sqlite3.connect(DATABASE_PATH)) as current:
+            restore_backup(legacy, candidate)
+    if candidate.exists():
+        with closing(sqlite3.connect(candidate)) as current:
             version = current.execute("PRAGMA user_version").fetchone()[0]
         if version > SCHEMA_VERSION:
             raise RuntimeError("Database was created by a newer application version")
-        if version < SCHEMA_VERSION:
+        if version < SCHEMA_VERSION and target_path is None:
             create_database_backup(DATA_DIR / "backups")
-    with connection() as db:
+    with connection(database_path=candidate) as db:
         db.executescript(
             """
             CREATE TABLE IF NOT EXISTS accounts (
@@ -244,6 +261,18 @@ def initialize_database() -> None:
         db.execute("""INSERT OR IGNORE INTO release_history(version, released_at, title, description, affected_areas)
                    VALUES ('0.21.1', '2026-10-04T21:00:00+03:30', 'بکاپ با بستن برنامه و جدول فشرده',
                            'حذف دکمهٔ خروج؛ پشتیبان هنگام بستن پنجرهٔ EXE؛ پیام فارسی قطع اتصال؛ وضعیت متنی رنگی و سطرهای فشرده.', 'اجرا و جدول‌ها')""")
+        db.execute("""INSERT OR IGNORE INTO release_history(version, released_at, title, description, affected_areas)
+                   VALUES ('0.22.0', '2026-10-06T12:00:00+03:30', 'گزارش خواناتر و منوی مرتب',
+                           'رنگ متن سطرها بر اساس پرداخت، راهنمای کارت‌ها، فیلتر بالای جدول، ساعت شمسی زنده و رویدادنگاری زیر تنظیمات.', 'رابط کاربری')""")
+        db.execute("""INSERT OR IGNORE INTO release_history(version, released_at, title, description, affected_areas)
+                   VALUES ('0.23.0', '2026-10-06T18:00:00+03:30', 'کنترل تراکنش تکراری و بودجهٔ ماهانه',
+                           'هشدار و بررسی تراکنش‌های مشابه، اتصال هزینه به پرداخت قسط بدون دوباره‌شماری و بودجهٔ ماهانهٔ دسته‌های هزینه.', 'تراکنش، اقساط و بودجه')""")
+        db.execute("""INSERT OR IGNORE INTO release_history(version, released_at, title, description, affected_areas)
+                   VALUES ('0.24.0', '2026-10-07T16:22:00+03:30', 'اطلاعات پایه و جریان نقدی',
+                   'تعریف بانک و حساب و موجودی، تفکیک معوقات و موجودی واقعی، سه نمودار مالی و دسترسی سریع به پشتیبان.', 'داشبورد، اطلاعات پایه، پشتیبان')""")
+        db.execute("""INSERT OR IGNORE INTO release_history(version, released_at, title, description, affected_areas)
+                   VALUES ('0.25.0', '2026-10-07T16:46:12+03:30', 'تقویم شمسی، بازیابی و راهنمای برنامه',
+                   'انتخابگر مشترک تاریخ شمسی، ارقام و قالب یکسان؛ بازیابی از فایل پس از اعتبارسنجی و تهیهٔ پشتیبان از اطلاعات فعلی؛ دکمهٔ بکاپ زیر آخرین منو و راهنمای کامل بخش‌ها.', 'تاریخ‌ها، تنظیمات و راهنما')""")
         accounts = ("حساب اصلی", "کارت بانکی", "نقدی")
         db.execute("""INSERT OR IGNORE INTO release_history(version, released_at, title, description, affected_areas)
                    VALUES ('0.18.0', '2026-09-30T20:00:00+03:30', 'اجرای قابل‌حمل با اطلاعات کنار برنامه',
@@ -311,7 +340,9 @@ def initialize_database() -> None:
                        'اصلاح مدیریت داشبورد، دریافت بازپرداخت، ویرایش همهٔ اقساط با حفظ پرداخت و ارتقای امن اطلاعات.',
                        'داشبورد، تعهدات، اقساط، دیتابیس و اجرای ویندوز')"""
         )
-        db.executemany("INSERT OR IGNORE INTO accounts(name) VALUES (?)", ((name,) for name in accounts))
+        seed_references = not db.execute("SELECT 1 FROM app_settings WHERE setting_key='reference_defaults_initialized'").fetchone()
+        if seed_references:
+            db.executemany("INSERT OR IGNORE INTO accounts(name) VALUES (?)", ((name,) for name in accounts))
 
         categories = (
             ("درآمد شغلی", "income"),
@@ -323,9 +354,10 @@ def initialize_database() -> None:
             ("آموزش", "expense"),
             ("سایر", "expense"),
         )
-        db.executemany(
-            "INSERT OR IGNORE INTO categories(name, transaction_type) VALUES (?, ?)", categories
-        )
+        if seed_references:
+            db.executemany("INSERT OR IGNORE INTO categories(name, transaction_type) VALUES (?, ?)", categories)
+            db.execute("UPDATE accounts SET kind='cash' WHERE name='نقدی'")
+            db.execute("INSERT INTO app_settings(setting_key,setting_value) VALUES ('reference_defaults_initialized','true')")
         db.execute(
             """INSERT OR IGNORE INTO release_history(version, released_at, title, description, affected_areas)
                VALUES ('0.2.0', '2026-09-19T00:00:00+03:30', 'پایهٔ قابل استفاده',
@@ -398,11 +430,12 @@ def clear_financial_data() -> Path:
     """Back up under a write lock, then atomically clear operational data."""
     with connection(write=True) as db:
         backup_path = create_database_backup(DATA_DIR / "backups")
-        tables = ("asset_values", "assets", "payments", "installments", "commitments", "transactions", "budget_items", "imported_rows", "import_runs")
+        tables = ("cash_opening", "monthly_budgets", "asset_values", "assets", "payments", "installments", "commitments", "transactions", "budget_items", "imported_rows", "import_runs")
         counts = {table: db.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0] for table in tables}
         db.execute("UPDATE audit_logs SET resource_type = 'archived_' || resource_type WHERE resource_type NOT LIKE 'archived_%'")
         for table in tables:
             db.execute(f"DELETE FROM {table}")
+        db.execute("UPDATE accounts SET opening_amount=NULL,opening_date=NULL")
         write_audit_log(db, "delete", "system", 0, json.dumps({"before": counts, "backup_path": str(backup_path)}, ensure_ascii=False))
     return backup_path
 

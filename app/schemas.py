@@ -33,7 +33,26 @@ class AssetInput(BaseModel):
         return value
 
 
+class BudgetInput(BaseModel):
+    month: str = Field(pattern=r"^\d{4}-\d{2}$")
+    category_id: int = Field(gt=0)
+    amount: int = Field(ge=0, le=9007199254740991)
+
+
+class CashOpeningInput(BaseModel):
+    amount: int = Field(ge=0, le=9007199254740991)
+    as_of_date: date
+
+    @field_validator("as_of_date", mode="before")
+    @classmethod
+    def parse_opening_date(cls, value):
+        return parse_jalali_date(value)
+
+
 class TransactionInput(BaseModel):
+    settled_on: date | None = None
+    payment_id: int | None = Field(default=None, gt=0)
+    confirm_duplicate: bool = False
     title: str = Field(default="", max_length=120)
     counterparty: str = Field(default="", max_length=120)
     status: Literal["paid", "unpaid", "cancelled"] = "paid"
@@ -48,6 +67,11 @@ class TransactionInput(BaseModel):
     @classmethod
     def normalize_note(cls, value: str) -> str:
         return normalize_text(value)
+
+    @field_validator("settled_on", mode="before")
+    @classmethod
+    def parse_settlement_date(cls, value):
+        return parse_jalali_date(value) if value else None
 
     @field_validator("occurred_on", mode="before")
     @classmethod

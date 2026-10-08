@@ -2,11 +2,14 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 
+import json
 import jdatetime
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, HTTPException
 
 from ..calendar import jalali_month_label, parse_jalali_date
-from ..database import connection
+from ..database import connection, write_audit_log
+from ..schemas import CashOpeningInput
+from ..services.cashflow import cash_overview
 from ..utils import installment_rows, month_bounds_or_error
 
 router = APIRouter(prefix="/api", tags=["dashboard"])
@@ -21,7 +24,7 @@ def dashboard(month: str | None = Query(default=None, pattern=r"^\d{4}-\d{2}$"))
     with connection() as db:
         transaction_data = db.execute(
             """SELECT transaction_type, COALESCE(SUM(amount), 0) AS total
-               FROM transactions WHERE status != 'cancelled' AND occurred_on >= ? AND occurred_on < ? GROUP BY transaction_type""",
+               FROM transactions WHERE status != 'cancelled' AND payment_id IS NULL AND occurred_on >= ? AND occurred_on < ? GROUP BY transaction_type""",
             (start, end),
         ).fetchall()
 
@@ -42,6 +45,7 @@ def dashboard(month: str | None = Query(default=None, pattern=r"^\d{4}-\d{2}$"))
     current_start, current_end = month_bounds_or_error(current_month)
     current = installment_rows("WHERE i.due_date >= ? AND i.due_date < ?", (current_start, current_end))
     return {
+        "cash": cash_overview(selected_month, today),
         "month": selected_month,
         "month_label": jalali_month_label(selected_month),
         "income": totals.get("income", 0),
@@ -61,3 +65,17 @@ def dashboard(month: str | None = Query(default=None, pattern=r"^\d{4}-\d{2}$"))
         "current_month_label": jalali_month_label(current_month),
         "current_installments": current,
     }
+
+
+@router.put("/cash-opening")
+def save_cash_opening(payload: CashOpeningInput):
+    if payload.as_of_date > date.today():
+        raise HTTPException(422, "تاریخ موجودی اولیه نمی‌تواند در آینده باشد.")
+    with connection(write=True) as db:
+        before = db.execute("SELECT * FROM cash_opening WHERE id=1").fetchone()
+        db.execute("""INSERT INTO cash_opening(id,amount,as_of_date) VALUES (1,?,?)
+            ON CONFLICT(id) DO UPDATE SET amount=excluded.amount,as_of_date=excluded.as_of_date""",
+                   (payload.amount,payload.as_of_date.isoformat()))
+        write_audit_log(db,"update" if before else "create","cash_opening",1,
+                        json.dumps({"before":dict(before) if before else None,"after":payload.model_dump(mode="json")},ensure_ascii=False))
+    return {"status":"saved"}

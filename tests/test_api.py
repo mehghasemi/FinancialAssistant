@@ -29,6 +29,168 @@ class ApiTests(unittest.TestCase):
             self.addCleanup(mock.stop)
         self.client = self.enterContext(TestClient(main.app, raise_server_exceptions=False))
 
+    def test_persian_calendar_leap_and_weekday(self):
+        import jdatetime
+        for year,month,days in [(1403,12,30),(1404,12,29),(1405,1,31),(1405,7,30)]:
+            result=self.client.get(f"/api/calendar?year={year}&month={month}")
+            self.assertEqual(result.status_code,200)
+            self.assertEqual(result.json()["days"],days)
+            self.assertEqual(result.json()["weekday"],jdatetime.date(year,month,1).weekday())
+        self.assertEqual(self.client.get("/api/calendar?year=1405&month=13").status_code,422)
+
+    def test_restore_upload_replaces_data_preserves_local_settings_and_rollback_backup(self):
+        payload=dict(title="پیشین",transaction_type="income",amount=123,occurred_on="1405/07/01")
+        self.client.post("/api/transactions",json=payload)
+        snapshot=database.create_database_backup(self.directory/"snapshots").read_bytes()
+        self.client.post("/api/transactions",json={**payload,"amount":456,"title":"جدید"})
+        database.set_setting("backup_directory",str(self.directory/"local-backups"))
+        files={"file":("backup.db",snapshot,"application/octet-stream")}
+        self.assertEqual(self.client.post("/api/backups/restore",files=files).status_code,422)
+        response=self.client.post("/api/backups/restore?confirm=true",files=files)
+        self.assertEqual(response.status_code,200,response.text)
+        self.assertEqual([row["amount"] for row in self.client.get("/api/transactions").json()],[123])
+        self.assertEqual(database.get_setting("backup_directory"),str(self.directory/"local-backups"))
+        with closing(sqlite3.connect(response.json()["backup_path"])) as before:
+            self.assertEqual(before.execute("SELECT COUNT(*) FROM transactions").fetchone()[0],2)
+        self.assertEqual(self.client.get("/api/audit-logs").json()["items"][0]["action"],"restore")
+
+    def test_restore_invalid_future_and_backup_failure_leave_live_data_intact(self):
+        self.client.post("/api/transactions",json=dict(title="محفوظ",transaction_type="income",amount=123,occurred_on="1405/07/01"))
+        snapshot=database.create_database_backup(self.directory/"snapshots")
+        original=snapshot.read_bytes()
+        for content in [b"not sqlite",b"SQLite format 3\x00"+b"broken"]:
+            response=self.client.post("/api/backups/restore?confirm=true",files={"file":("bad.db",content)})
+            self.assertEqual(response.status_code,422,response.text)
+        with closing(sqlite3.connect(snapshot)) as future:
+            future.execute("PRAGMA user_version=999")
+        self.assertEqual(self.client.post("/api/backups/restore?confirm=true",files={"file":("future.db",snapshot.read_bytes())}).status_code,422)
+        with patch.object(database,"create_database_backup",side_effect=OSError("backup failed")):
+            self.assertEqual(self.client.post("/api/backups/restore?confirm=true",files={"file":("valid.db",original)}).status_code,500)
+        self.assertEqual([row["amount"] for row in self.client.get("/api/transactions").json()],[123])
+
+    def test_cash_dates_arrears_opening_and_annual(self):
+        from datetime import date
+        from app.services.cashflow import cash_overview
+        self.assertEqual(self.client.put("/api/cash-opening",json=dict(amount=1000,as_of_date="1405/07/01")).status_code,200)
+        for title,kind,amount,due,settled,status in [
+            ("حقوق","income",900,"1405/07/01","1405/07/02","paid"),
+            ("بدهی پیشین","expense",200,"1405/06/01","1405/07/03","paid"),
+            ("خرید جاری","expense",100,"1405/07/01","1405/07/04","paid"),
+            ("در انتظار","expense",50,"1405/07/01",None,"unpaid"),
+            ("آینده","income",500,"1405/08/01","1405/08/01","paid")]:
+            response=self.client.post("/api/transactions",json=dict(title=title,transaction_type=kind,amount=amount,occurred_on=due,settled_on=settled,status=status))
+            self.assertEqual(response.status_code,201,response.text)
+        cash=cash_overview("1405-07",date(2026,10,7))
+        self.assertEqual((cash["income"],cash["paid"],cash["arrears_paid"],cash["available"]),(900,300,200,1600))
+        self.assertEqual(cash["components"],dict(current=100,arrears=200,advance=0))
+        self.assertEqual(len(cash["annual"]),12)
+        self.assertIsNone(cash["annual"][7]["income"])
+        dashboard=self.client.get("/api/dashboard?month=1405-07").json()
+        self.assertEqual(dashboard["monthly_balance"],750)
+
+    def test_cash_linked_installment_counted_once_and_missing_baseline(self):
+        from datetime import date
+        from app.services.cashflow import cash_overview
+        commitment,payment,transaction,payload=self.linked_expense()
+        cash=cash_overview("1405-07",date(2026,10,7))
+        self.assertEqual(cash["paid"],500)
+        self.assertEqual(len(cash["period_items"]),1)
+        self.assertIsNone(cash["available"])
+        self.client.patch(f"/api/payments/{payment}",json=dict(amount=600,paid_on="1405/08/01"))
+        cash=cash_overview("1405-08",date(2026,11,7))
+        self.assertEqual((cash["paid"],cash["arrears_paid"]),(600,600))
+
+    def test_reference_delete_survives_restart_and_category_type_protected(self):
+        row=self.client.get("/api/accounts").json()[0]
+        self.assertEqual(self.client.delete(f"/api/base-data/accounts/{row['id']}?confirm=true").status_code,200)
+        database.initialize_database()
+        self.assertNotIn(row["name"],[item["name"] for item in self.client.get("/api/accounts").json()])
+        category=next(item for item in self.client.get("/api/categories").json() if item["transaction_type"]=="expense")
+        self.client.post("/api/transactions",json=dict(title="خرید",transaction_type="expense",category_id=category["id"],amount=10,occurred_on="1405/07/01"))
+        response=self.client.put(f"/api/base-data/categories/{category['id']}",json=dict(name=category["name"],transaction_type="income"))
+        self.assertEqual(response.status_code,409)
+
+    def test_reference_accounts_balances_and_protected_deletion(self):
+        bank=self.client.post("/api/base-data/banks",json=dict(name="بانک آزمایشی"))
+        self.assertEqual(bank.status_code,201,bank.text)
+        bank_id=bank.json()["id"]
+        self.assertEqual(self.client.post("/api/base-data/banks",json=dict(name="بانک آزمایشی")).status_code,409)
+        rows=self.client.get("/api/base-data").json()["accounts"]
+        for row in rows:
+            result=self.client.put(f"/api/base-data/accounts/{row['id']}",json=dict(name=row["name"],bank_id=bank_id,opening_amount=1000,opening_date="1405/07/01"))
+            self.assertEqual(result.status_code,200,result.text)
+        account=rows[0]["id"]
+        self.assertEqual(self.client.post("/api/transactions",json=dict(title="درآمد",transaction_type="income",amount=200,occurred_on="1405/07/01",settled_on="1405/07/02",account_id=account)).status_code,201)
+        data=self.client.get("/api/base-data").json()
+        self.assertEqual(data["accounts"][0]["balance"],1200)
+        self.assertEqual(self.client.get("/api/dashboard?month=1405-07").json()["cash"]["available"],len(rows)*1000+200)
+        self.assertEqual(self.client.delete(f"/api/base-data/banks/{bank_id}?confirm=true").status_code,409)
+        self.assertEqual(self.client.delete(f"/api/base-data/accounts/{account}?confirm=true").status_code,409)
+        bad=self.client.post("/api/base-data/accounts",json=dict(name="تاریخ متفاوت",opening_amount=0,opening_date="1405/06/01"))
+        self.assertEqual(bad.status_code,422)
+        self.assertEqual(self.client.post("/api/base-data/accounts",json=dict(name="حساب جدید")).status_code,201)
+        self.assertIsNone(self.client.get("/api/dashboard?month=1405-07").json()["cash"]["available"])
+
+    def test_duplicate_warning_requires_explicit_override_and_serializes_writes(self):
+        payload = dict(title="خرید",transaction_type="expense",amount=321,occurred_on="1405/07/01")
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            results = list(pool.map(lambda _: self.client.post("/api/transactions",json=payload), range(2)))
+        self.assertEqual(sorted(response.status_code for response in results), [201,409])
+        warning = next(response for response in results if response.status_code==409).json()["detail"]
+        self.assertEqual(warning["code"],"possible_duplicate")
+        self.assertEqual(len(warning["candidates"]),1)
+        self.assertEqual(self.client.post("/api/transactions",json={**payload,"confirm_duplicate":True}).status_code,201)
+        self.assertEqual(len(self.client.get("/api/transactions").json()),2)
+        self.assertEqual(len(self.client.get("/api/transaction-duplicates").json()),2)
+
+    def linked_expense(self):
+        identifier = self.create(installment_count=1,interval_months=1)
+        payment = self.client.post("/api/payments",json=dict(installment_id=self.rows(identifier)[0]["id"],amount=500,paid_on="1405/07/01")).json()["id"]
+        category = next(row["id"] for row in self.client.get("/api/categories").json() if row["transaction_type"]=="expense")
+        payload = dict(title="پرداخت وام",transaction_type="expense",amount=500,occurred_on="1405/07/01",category_id=category,payment_id=payment)
+        response = self.client.post("/api/transactions",json=payload)
+        self.assertEqual(response.status_code,201,response.text)
+        return identifier,payment,response.json()["id"],payload
+
+    def test_payment_link_excludes_double_count_and_syncs_changes(self):
+        commitment,payment,transaction,payload = self.linked_expense()
+        self.assertEqual(self.client.get("/api/financial-report?month=1405-07").json()["summary"]["total_expenses"],1000)
+        self.assertEqual(self.client.get("/api/dashboard?month=1405-07").json()["expense"],0)
+        self.assertEqual(self.client.get("/api/budgets?month=1405-07").json()["summary"]["unbudgeted_expenses"],0)
+        self.assertEqual(self.client.post("/api/transactions",json={**payload,"confirm_duplicate":True}).status_code,409)
+        self.assertEqual(self.client.patch(f"/api/transactions/{transaction}",json={**payload,"amount":501}).status_code,422)
+        response=self.client.patch(f"/api/payments/{payment}",json=dict(amount=600,paid_on="1405/08/01"))
+        self.assertEqual(response.status_code,200,response.text)
+        row=next(row for row in self.client.get("/api/transactions").json() if row["id"]==transaction)
+        self.assertEqual((row["amount"],row["occurred_on"],row["settled_on"]),(600,"۱۴۰۵/۰۷/۰۱","۱۴۰۵/۰۸/۰۱"))
+        self.client.delete(f"/api/payments/{payment}")
+        row=self.client.get("/api/transactions").json()[0]
+        self.assertIsNone(row["payment_id"])
+        self.assertEqual(self.client.get("/api/dashboard?month=1405-07").json()["expense"],600)
+
+    def test_deleting_linked_transaction_preserves_payment(self):
+        commitment,payment,transaction,payload=self.linked_expense()
+        self.assertEqual(self.client.delete(f"/api/transactions/{transaction}?confirm=true").status_code,200)
+        self.assertEqual(self.rows(commitment)[0]["paid_amount"],500)
+        self.assertIsNone(self.client.get("/api/payment-links").json()[0]["transaction_id"])
+
+    def test_budgets_month_boundaries_status_and_zero_limit(self):
+        category=next(row["id"] for row in self.client.get("/api/categories").json() if row["transaction_type"]=="expense")
+        for amount,status,day in ((100,"paid","1405/07/01"),(50,"unpaid","1405/07/30"),(700,"cancelled","1405/07/01"),(900,"paid","1405/08/01")):
+            self.assertEqual(self.client.post("/api/transactions",json=dict(title="هزینه",transaction_type="expense",amount=amount,status=status,occurred_on=day,category_id=category)).status_code,201)
+        budget=dict(month="1405-07",category_id=category,amount=120)
+        self.assertEqual(self.client.put("/api/budgets",json=budget).status_code,200)
+        report=self.client.get("/api/budgets?month=1405-07").json()
+        item=next(row for row in report["items"] if row["category_id"]==category)
+        self.assertEqual((item["spent"],item["pending"],item["remaining"],item["available"]),(100,50,20,-30))
+        self.assertEqual(self.client.get("/api/budgets?month=1405-08").json()["summary"]["amount"],0)
+        self.assertEqual(self.client.put("/api/budgets",json={**budget,"amount":0}).status_code,200)
+        self.assertEqual(self.client.get("/api/budgets?month=1405-07").json()["summary"]["remaining"],-100)
+        self.assertEqual(self.client.get("/api/budgets?month=1405-13").status_code,422)
+        self.assertEqual(self.client.delete(f"/api/budgets/{category}?month=1405-07").status_code,422)
+        self.assertEqual(self.client.delete(f"/api/budgets/{category}?month=1405-07&confirm=true").status_code,200)
+        self.assertEqual(len(self.client.get("/api/transactions").json()),4)
+
     def test_data_status_tracks_writes_but_not_reads(self):
         before = self.client.get("/api/data-status").json()
         self.assertIsNone(before["last_changed_at"])

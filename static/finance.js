@@ -31,8 +31,16 @@ async function loadFinancialReport() {
     const s = data.summary;
     const periodLabel = document.getElementById("transactionMonth").value ? "ماه" : "بازه";
     const cards = [["مجموع درآمد",s.income,s.income_count],["تعهدات برنامه‌ریزی‌شده",s.installment_total,`${persianDigits(s.installment_count)} قسط از ${persianDigits(s.commitment_count)} تعهد`],["سایر هزینه‌ها",s.expense,s.expense_count],[`مجموع هزینه‌ها و تعهدات ${periodLabel}`,s.total_expenses],[`ماندهٔ ${periodLabel}`,s.monthly_balance],["ماندهٔ پرداخت اقساط",s.remaining_installments]];
-    document.getElementById("financeSummary").innerHTML = cards.map(([label,value,count]) => `<div><span>${label}</span><strong>${moneyDisplay(value)}</strong>${count === undefined ? "" : `<small>${typeof count === "string" ? count : `${persianDigits(count)} مورد`}</small>`}</div>`).join("");
-    renderRows("transactionRows", data.items.filter(item => item.record_type !== "commitment" || document.getElementById("reportType").value === "commitment").map(item => `<tr class="${item.record_type === "commitment" ? "aggregate-row" : ""}"><td>${item.date}</td><td>${reportTypeNames[item.record_type]}</td><td>${escapeHtml(item.title)}</td><td>${escapeHtml(item.category)}</td><td>${moneyDisplay(item.amount)}</td><td>${financialStatusNames[item.status]}</td><td>${escapeHtml(item.counterparty)}</td><td>${item.installment_count ? `${item.installment_number ? persianDigits(item.installment_number) + " / " : ""}${persianDigits(item.installment_count)}` : "—"}</td><td>${escapeHtml(item.note)}</td><td class="row-actions">${["income","expense"].includes(item.record_type) ? `<button class="quiet edit-transaction" data-id="${item.id}">ویرایش</button><button class="quiet delete-transaction" data-id="${item.id}">حذف</button>` : `<button class="quiet report-details" data-id="${item.commitment_id}">اقساط و پرداخت</button>`}</td></tr>`),10);
+    const hints = [
+      "جمع درآمدهای انجام‌شده و در انتظار در فیلتر فعلی؛ موارد لغوشده محاسبه نمی‌شوند.",
+      "جمع اقساط با سررسید در بازهٔ انتخابی، شامل پرداخت‌شده و پرداخت‌نشده. تعهد، تجمیع همین اقساط است و دوباره جمع نمی‌شود.",
+      "هزینه‌های خارج از اقساط، شامل انجام‌شده و در انتظار؛ بدون لغوشده‌ها. پرداخت قسط را دوباره به‌عنوان هزینه ثبت نکنید.",
+      "تعهدات برنامه‌ریزی‌شده + سایر هزینه‌ها؛ بدون دوباره‌شماری اقساط و تعهدات.",
+      "درآمد − مجموع هزینه‌ها و تعهدات در فیلتر فعلی. این عدد موجودی واقعی حساب بانکی نیست.",
+      "بخش پرداخت‌نشدهٔ اقساط با سررسید در بازهٔ انتخابی؛ پرداخت‌های ثبت‌شده از آن کم شده‌اند."
+    ];
+    document.getElementById("financeSummary").innerHTML = cards.map(([label,value,count], index) => `<div><span>${label}</span>${summaryHint(label,hints[index],`finance-hint-${index}`)}<strong>${moneyDisplay(value)}</strong>${count === undefined ? "" : `<small>${typeof count === "string" ? count : `${persianDigits(count)} مورد`}</small>`}</div>`).join("");
+    renderRows("transactionRows", data.items.filter(item => item.record_type !== "commitment" || document.getElementById("reportType").value === "commitment").map(item => `<tr class="${paymentRowClass(item.status)} ${item.record_type === "commitment" ? "aggregate-row" : ""}"><td>${item.date}</td><td>${reportTypeNames[item.record_type]}</td><td>${escapeHtml(item.title)}</td><td>${escapeHtml(item.category)}</td><td>${moneyDisplay(item.amount)}</td><td>${financialStatusNames[item.status]}${item.payment_id ? " · متصل به قسط (خارج از جمع هزینه)" : ""}</td><td>${escapeHtml(item.counterparty)}</td><td>${item.installment_count ? `${item.installment_number ? persianDigits(item.installment_number) + " / " : ""}${persianDigits(item.installment_count)}` : "—"}</td><td>${escapeHtml(item.note)}</td><td class="row-actions">${["income","expense"].includes(item.record_type) ? `<button class="quiet edit-transaction" data-id="${item.id}">ویرایش</button><button class="quiet delete-transaction" data-id="${item.id}">حذف</button>` : `<button class="quiet report-details" data-id="${item.commitment_id}">اقساط و پرداخت</button>`}</td></tr>`),10);
     document.getElementById("financeFooter").innerHTML = `<tr><th scope="row">جمع همین فیلتر</th><td colspan="9"><div class="report-footer">${cards.slice(0,6).map(([label,value])=>`<span>${label}: <b>${currency(value)}</b></span>`).join("")}</div></td></tr>`;
   } catch (error) {
     if (request !== financialReportRequest) return;
@@ -44,6 +52,7 @@ async function loadFinancialReport() {
 }
 function setTransactionFormOpen(open) {
   document.getElementById("transactionEntry").hidden = !open;
+  if (open) loadPaymentOptions().catch(error=>setMessage("transactionMessage",error.message,true));
   const toggle = document.getElementById("toggleTransactionEntry");
   toggle.setAttribute("aria-expanded", String(open));
   toggle.textContent = open ? "بستن فرم" : "＋ ثبت درآمد / هزینه";
@@ -58,6 +67,8 @@ function resetTransaction() {
   transactionEditId = null;
   document.getElementById("transactionForm").reset();
   document.getElementById("transactionDate").value = todayJalali();
+  document.getElementById("transactionSettledDate").value = todayJalali();
+  syncTransactionSettlement();
   document.getElementById("transactionFormTitle").textContent = "تراکنش جدید";
   document.getElementById("cancelTransactionEdit").hidden = true;
   updateCategories(); Money.scan(); setTransactionFormOpen(false);
@@ -67,35 +78,48 @@ document.getElementById("transactionForm").addEventListener("submit", async even
   event.preventDefault();
   const button = event.target.querySelector('[type="submit"]'); button.disabled = true;
   try {
-    const payload = {title:document.getElementById("transactionTitle").value.trim(), transaction_type:document.getElementById("transactionType").value, amount:amountNumber(document.getElementById("transactionAmount").value), occurred_on:document.getElementById("transactionDate").value, category_id:Number(document.getElementById("transactionCategory").value)||null, account_id:Number(document.getElementById("transactionAccount").value)||null, counterparty:document.getElementById("transactionParty").value, status:document.getElementById("transactionStatus").value, note:document.getElementById("transactionNote").value};
+    const payload = {settled_on:document.getElementById("transactionStatus").value === "paid" ? document.getElementById("transactionSettledDate").value || null : null, payment_id:Number(document.getElementById("transactionPayment").value)||null, title:document.getElementById("transactionTitle").value.trim(), transaction_type:document.getElementById("transactionType").value, amount:amountNumber(document.getElementById("transactionAmount").value), occurred_on:document.getElementById("transactionDate").value, category_id:Number(document.getElementById("transactionCategory").value)||null, account_id:Number(document.getElementById("transactionAccount").value)||null, counterparty:document.getElementById("transactionParty").value, status:document.getElementById("transactionStatus").value, note:document.getElementById("transactionNote").value};
     if (!payload.title) throw new Error("عنوان ضروری است.");
-    await api(`/transactions${transactionEditId ? "/"+transactionEditId : ""}`, {method:transactionEditId ? "PATCH":"POST",body:JSON.stringify(payload)});
+    const save = () => api(`/transactions${transactionEditId ? "/"+transactionEditId : ""}`, {method:transactionEditId ? "PATCH":"POST",body:JSON.stringify(payload)});
+    try { await save(); }
+    catch(error) {
+      if (error.code !== "possible_duplicate") throw error;
+      const candidates = error.candidates.map(row=>`${persianDigits(row.id)} — ${row.title}`).join("\n");
+      if (!confirm(`${error.message}\n${candidates}\nفقط اگر مستقل است تأیید کنید؛ در غیر این صورت انصراف دهید و تراکنش قبلی را ویرایش کنید.`)) return;
+      payload.confirm_duplicate = true; await save();
+    }
     resetTransaction(); setMessage("transactionMessage","تراکنش ذخیره شد."); await refreshAll();
   } catch (error) { setMessage("transactionMessage",error.message,true); }
   finally { button.disabled = false; }
 });
-document.getElementById("transactionRows").addEventListener("click",async event=>{
+document.querySelector(".finance-report").addEventListener("click",async event=>{
   const edit = event.target.closest(".edit-transaction"), remove = event.target.closest(".delete-transaction"), details=event.target.closest(".report-details");
   try {
     if (details) { await openCommitmentDetails(Number(details.dataset.id)); return; }
-    if (remove && confirm("این درآمد یا هزینه حذف شود؟ تغییر در رویدادنگاری ثبت می‌شود.")) {
+    if (remove && confirm("این درآمد یا هزینه حذف شود؟ پرداخت قسط متصل، در صورت وجود، حذف نمی‌شود.")) {
       await api(`/transactions/${remove.dataset.id}?confirm=true`,{method:"DELETE"});
       if (transactionEditId === Number(remove.dataset.id)) resetTransaction();
       await refreshAll(); return;
     }
     if (!edit) return;
+    await editTransactionById(Number(edit.dataset.id));
+  } catch(error) { setMessage("financeMessage",error.message,true); }
+});
+async function editTransactionById(identifier) {
     const items = await api("/transactions");
-    const item = items.find(row=>row.id===Number(edit.dataset.id));
+    const item = items.find(row=>row.id===identifier);
     if (!item) throw new Error("تراکنش پیدا نشد؛ گزارش را تازه کنید.");
     transactionEditId = item.id;
     setTransactionFormOpen(true);
     document.getElementById("transactionType").value = item.transaction_type; updateCategories();
-    for (const [id,key] of Object.entries({transactionTitle:"title",transactionAmount:"amount",transactionDate:"occurred_on",transactionCategory:"category_id",transactionAccount:"account_id",transactionNote:"note",transactionParty:"counterparty",transactionStatus:"status"})) document.getElementById(id).value=item[key]??"";
+    for (const [id,key] of Object.entries({transactionTitle:"title",transactionAmount:"amount",transactionDate:"occurred_on",transactionCategory:"category_id",transactionAccount:"account_id",transactionNote:"note",transactionParty:"counterparty",transactionStatus:"status",transactionSettledDate:"settled_on"})) document.getElementById(id).value=item[key]??"";
+    document.getElementById("transactionSettledDate").value=item.settled_on||item.occurred_on;
+    syncTransactionSettlement();
+    await loadPaymentOptions(item.payment_id);
     document.getElementById("transactionFormTitle").textContent="ویرایش تراکنش";
     document.getElementById("cancelTransactionEdit").hidden=false; Money.scan();
     document.getElementById("transactionForm").scrollIntoView({block:"start"});
-  } catch(error) { setMessage("financeMessage",error.message,true); }
-});
+}
 let reportTimer;
 document.getElementById("financeFilters").addEventListener("input",event=>{
   if (event.target.id === "transactionMonth") return;
@@ -170,3 +194,46 @@ async function loadDataStatus() {
 }
 loadDataStatus();
 document.addEventListener("visibilitychange",()=>{ if (!document.hidden) loadDataStatus(); });
+
+
+let paymentOptions = [], paymentOptionsRequest = 0;
+async function loadPaymentOptions(selected) {
+  const request = ++paymentOptionsRequest;
+  const items = await api("/payment-links");
+  if (request !== paymentOptionsRequest) return;
+  paymentOptions = items;
+  const select = document.getElementById("transactionPayment");
+  const current = selected === undefined ? Number(select.value)||null : selected;
+  select.innerHTML = '<option value="">هزینهٔ مستقل / بدون اتصال</option>' + items.filter(item=>!item.transaction_id || item.transaction_id===transactionEditId).map(item=>`<option value="${item.id}">${escapeHtml(item.title)} — ${item.paid_on} — ${currency(item.amount)} — پرداخت ${persianDigits(item.id)}</option>`).join("");
+  select.value = current || "";
+}
+document.getElementById("transactionPayment").addEventListener("change", event => {
+  const payment = paymentOptions.find(item=>item.id===Number(event.target.value));
+  if (!payment) return;
+  document.getElementById("transactionType").value="expense"; updateCategories();
+  document.getElementById("transactionStatus").value="paid";
+  document.getElementById("transactionAmount").value=payment.amount;
+  document.getElementById("transactionDate").value=payment.due_date;
+  document.getElementById("transactionSettledDate").value=payment.paid_on;
+  syncTransactionSettlement();
+  document.getElementById("transactionAccount").value=payment.account_id || "";
+  Money.scan();
+});
+
+async function loadDuplicateTransactions() {
+  try {
+    const items=await api("/transaction-duplicates");
+    document.getElementById("duplicateMessage").textContent=items.length ? `${persianDigits(items.length)} تراکنش مشابه؛ برای بررسی، ویرایش را انتخاب کنید.` : "تراکنش مشابهی پیدا نشد.";
+    renderRows("duplicateRows",items.map(item=>`<tr><td>${escapeHtml(item.title)}</td><td>${item.occurred_on}</td><td>${reportTypeNames[item.transaction_type]}</td><td>${currency(item.amount)}</td><td>${escapeHtml(accounts.find(account=>account.id===item.account_id)?.name || "بدون حساب")}</td><td><button class="quiet edit-transaction" data-id="${item.id}">ویرایش</button><button class="quiet delete-transaction" data-id="${item.id}">حذف پس از بررسی</button></td></tr>`),6);
+  } catch(error) { document.getElementById("duplicateMessage").textContent=error.message; }
+}
+document.getElementById("transactionDuplicateReview").addEventListener("toggle",event=>{if(event.target.open) loadDuplicateTransactions();});
+
+function syncTransactionSettlement() {
+  const paid=document.getElementById("transactionStatus").value==="paid";
+  const field=document.getElementById("transactionSettledDate");
+  field.closest(".field").hidden=!paid; field.required=paid;
+  if(paid && !field.value) field.value=todayJalali();
+}
+document.getElementById("transactionStatus").addEventListener("change",syncTransactionSettlement);
+syncTransactionSettlement();

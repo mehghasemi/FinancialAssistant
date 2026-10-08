@@ -230,6 +230,11 @@ def update_payment(payment_id: int, payload: PaymentUpdate):
             raise FinanceError(422, "مجموع پرداخت‌ها از مبلغ قسط بیشتر می‌شود.")
         if payload.account_id is not None and not db.execute("SELECT 1 FROM accounts WHERE id = ?", (payload.account_id,)).fetchone():
             raise FinanceError(422, "حساب انتخاب‌شده پیدا نشد.")
+        linked = db.execute("SELECT * FROM transactions WHERE payment_id=?", (payment_id,)).fetchone()
+        if linked:
+            db.execute("UPDATE transactions SET amount=?, settled_on=?, account_id=?, settled_date_assumed=0 WHERE id=?",
+                       (payload.amount, payload.paid_on.isoformat(), payload.account_id, linked["id"]))
+            write_audit_log(db, "update", "transaction", linked["id"], json.dumps({"before":dict(linked), "after":{"amount":payload.amount,"settled_on":payload.paid_on.isoformat(),"account_id":payload.account_id},"reason":"payment_sync"}, ensure_ascii=False))
         db.execute("UPDATE payments SET amount = ?, paid_on = ?, account_id = ?, note = ? WHERE id = ?",
                    (payload.amount, payload.paid_on.isoformat(), payload.account_id, payload.note.strip(), payment_id))
         write_audit_log(db, "update", "payment", payment_id, json.dumps({
@@ -238,6 +243,14 @@ def update_payment(payment_id: int, payload: PaymentUpdate):
             "after": {"amount": payload.amount, "paid_on": payload.paid_on.isoformat(), "account_id": payload.account_id, "note": payload.note.strip()}
         }, ensure_ascii=False))
     return {"id": payment_id}
+
+
+
+def audit_unlinked_expenses(db, payment_ids):
+    for payment_id in payment_ids:
+        linked = db.execute("SELECT id FROM transactions WHERE payment_id=?", (payment_id,)).fetchone()
+        if linked:
+            write_audit_log(db, "update", "transaction", linked["id"], json.dumps({"before":{"payment_id":payment_id},"after":{"payment_id":None},"reason":"payment_deleted"}, ensure_ascii=False))
 
 
 def delete_payment(payment_id: int):
@@ -249,6 +262,7 @@ def delete_payment(payment_id: int):
             "installment_id": existing["installment_id"],
             "before": {key: existing[key] for key in ("amount", "paid_on", "account_id", "note")}
         }, ensure_ascii=False))
+        audit_unlinked_expenses(db, [payment_id])
         db.execute("DELETE FROM payments WHERE id = ?", (payment_id,))
     return {"id": payment_id}
 
@@ -263,6 +277,7 @@ def delete_commitment(commitment_id: int):
         write_audit_log(db, "delete", "commitment", commitment_id, json.dumps({
             "before": dict(commitment), "installments": installments, "payments": payments
         }, ensure_ascii=False))
+        audit_unlinked_expenses(db, [row[0] for row in db.execute("SELECT p.id FROM payments p JOIN installments i ON i.id=p.installment_id WHERE i.commitment_id=?", (commitment_id,))])
         db.execute("DELETE FROM payments WHERE installment_id IN (SELECT id FROM installments WHERE commitment_id = ?)", (commitment_id,))
         db.execute("DELETE FROM installments WHERE commitment_id = ?", (commitment_id,))
         db.execute("DELETE FROM commitments WHERE id = ?", (commitment_id,))

@@ -4,6 +4,8 @@ from __future__ import annotations
 from contextlib import closing
 from pathlib import Path
 import sqlite3
+import tempfile
+import json
 
 from ..migrations import SCHEMA_VERSION
 
@@ -38,6 +40,18 @@ def validate_backup(db: sqlite3.Connection) -> None:
             columns = {row[1] for row in db.execute(f"PRAGMA table_info({table})")}
             if not required.issubset(columns):
                 raise ValueError("Backup schema does not match its version")
+    if version >= 5:
+        for table, required in {"transactions":{"payment_id"}, "monthly_budgets":{"month","category_id","amount"}}.items():
+            if not required.issubset({row[1] for row in db.execute(f"PRAGMA table_info({table})")}):
+                raise ValueError("Backup schema does not match its version")
+    if version >= 6:
+        for table, required in {"transactions":{"settled_on","settled_date_assumed"}, "cash_opening":{"id","amount","as_of_date"}}.items():
+            if not required.issubset({row[1] for row in db.execute(f"PRAGMA table_info({table})")}):
+                raise ValueError("Backup schema does not match its version")
+    if version >= 7:
+        for table, required in {"banks":{"id","name"}, "accounts":{"bank_id","account_number","opening_amount","opening_date"}}.items():
+            if not required.issubset({row[1] for row in db.execute(f"PRAGMA table_info({table})")}):
+                raise ValueError("Backup schema does not match its version")
     if db.execute("PRAGMA foreign_key_check").fetchone():
         raise ValueError("Backup contains broken references")
 
@@ -63,3 +77,35 @@ def restore_backup(source: Path, destination: Path) -> Path:
             destination.unlink(missing_ok=True)
             raise
     return destination
+
+
+def restore_uploaded_backup(content: bytes) -> Path:
+    """Prepare fully, then replace SQLite contents atomically under the app lock."""
+    from .. import database
+    if not content.startswith(b"SQLite format 3\x00"):
+        raise ValueError("فایل انتخاب‌شده دیتابیس SQLite نیست.")
+    with tempfile.TemporaryDirectory(prefix="restore-", dir=database.DATA_DIR) as directory:
+        uploaded, staged = Path(directory) / "upload.db", Path(directory) / "staged.db"
+        uploaded.write_bytes(content)
+        with closing(sqlite3.connect(uploaded)) as source:
+            source.execute("PRAGMA trusted_schema=OFF")
+            if source.execute("SELECT 1 FROM sqlite_master WHERE type IN ('trigger','view')").fetchone():
+                raise ValueError("ساختار فایل پشتیبان پشتیبانی نمی‌شود.")
+        restore_backup(uploaded, staged)
+        database.initialize_database(target_path=staged)
+        with database.DATABASE_LOCK:
+            # Paths belong to this machine, not the computer which made the backup.
+            with database.connection() as current:
+                local_settings = current.execute("SELECT setting_key,setting_value FROM app_settings WHERE setting_key IN ('backup_directory','backup_enabled','portable_data_directory')").fetchall()
+            before_path = database.create_database_backup(database.DATA_DIR / "backups")
+            with closing(sqlite3.connect(staged)) as source:
+                for key, value in local_settings:
+                    source.execute("INSERT INTO app_settings(setting_key,setting_value) VALUES (?,?) ON CONFLICT(setting_key) DO UPDATE SET setting_value=excluded.setting_value", (key, value))
+                database.write_audit_log(source, "restore", "system", 0, json.dumps({"backup_path": str(before_path)}, ensure_ascii=False))
+                source.commit()
+                validate_backup(source)
+                # sqlite backup commits the replacement as one destination transaction.
+                # No file rename, and no stale WAL/SHM sidecars.
+                with closing(sqlite3.connect(database.DATABASE_PATH)) as destination:
+                    source.backup(destination)
+        return before_path

@@ -42,17 +42,67 @@ def validate_references(db, payload):
         raise HTTPException(404, "حساب پیدا نشد.")
 
 
+
+def validate_payment_and_duplicates(db, payload, identifier=0):
+    if payload.payment_id:
+        payment = db.execute("SELECT * FROM payments WHERE id=?", (payload.payment_id,)).fetchone()
+        if not payment:
+            raise HTTPException(404, "پرداخت قسط پیدا نشد.")
+        if (payload.transaction_type != "expense" or payload.status != "paid" or
+                (payload.amount, (payload.settled_on or payload.occurred_on).isoformat(), payload.account_id) !=
+                (payment["amount"], payment["paid_on"], payment["account_id"])):
+            raise HTTPException(422, "برای اتصال، نوع هزینه و وضعیت انجام‌شده و مبلغ، تاریخ و حساب یکسان با پرداخت قسط لازم است.")
+        if db.execute("SELECT 1 FROM transactions WHERE payment_id=? AND id!=?", (payload.payment_id, identifier)).fetchone():
+            raise HTTPException(409, "این پرداخت قبلاً به یک هزینه متصل شده است.")
+    if payload.confirm_duplicate or payload.status == "cancelled":
+        return
+    duplicates = db.execute("""SELECT id,title FROM transactions WHERE id!=? AND transaction_type=?
+        AND amount=? AND occurred_on=? AND account_id IS ? AND status!='cancelled'""",
+        (identifier, payload.transaction_type, payload.amount, payload.occurred_on.isoformat(), payload.account_id)).fetchall()
+    if duplicates:
+        raise HTTPException(409, {"code":"possible_duplicate", "message":"تراکنش با مبلغ، تاریخ، نوع و حساب مشابه وجود دارد. آیا این یک تراکنش مستقل است؟",
+                                  "candidates":[dict(row) for row in duplicates]})
+
+
+@router.get("/payment-links")
+def payment_links():
+    with connection() as db:
+        items = [dict(row) for row in db.execute("""SELECT p.id,p.amount,p.paid_on,p.account_id,i.due_date,
+            i.commitment_id,c.title,t.id AS transaction_id FROM payments p
+            JOIN installments i ON i.id=p.installment_id JOIN commitments c ON c.id=i.commitment_id
+            LEFT JOIN transactions t ON t.payment_id=p.id ORDER BY p.paid_on DESC,p.id DESC""")]
+    for item in items:
+        item["paid_on"] = format_jalali_date(item["paid_on"])
+        item["due_date"] = format_jalali_date(item["due_date"])
+    return items
+
+
 def transaction_values(payload):
     return (payload.transaction_type, payload.amount, payload.occurred_on.isoformat(), payload.category_id,
-            payload.account_id, payload.note.strip(), payload.title.strip() or payload.note.strip() or "تراکنش", payload.counterparty.strip(), payload.status)
+            payload.account_id, payload.note.strip(), payload.title.strip() or payload.note.strip() or "تراکنش", payload.counterparty.strip(), payload.status, payload.payment_id,
+            (payload.settled_on or payload.occurred_on).isoformat() if payload.status == "paid" else None,
+            int(payload.settled_on is None))
+
+
+@router.get("/transaction-duplicates")
+def transaction_duplicates():
+    with connection() as db:
+        items = [dict(row) for row in db.execute("""SELECT id,title,transaction_type,amount,occurred_on,account_id FROM (
+            SELECT *,COUNT(*) OVER(PARTITION BY transaction_type,amount,occurred_on,account_id) AS similar
+            FROM transactions WHERE status!='cancelled'
+        ) WHERE similar>1 ORDER BY occurred_on DESC,amount,account_id,id""")]
+    for item in items:
+        item["occurred_on"] = format_jalali_date(item["occurred_on"])
+    return items
 
 
 @router.post("/transactions", status_code=201)
 def create_transaction(payload: TransactionInput):
     with connection(write=True) as db:
         validate_references(db, payload)
-        cursor = db.execute("""INSERT INTO transactions(transaction_type, amount, occurred_on, category_id, account_id, note, title, counterparty, status)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""", transaction_values(payload))
+        validate_payment_and_duplicates(db, payload)
+        cursor = db.execute("""INSERT INTO transactions(transaction_type, amount, occurred_on, category_id, account_id, note, title, counterparty, status, payment_id, settled_on, settled_date_assumed)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""", transaction_values(payload))
         write_audit_log(db, "create", "transaction", cursor.lastrowid, json.dumps({"after": payload.model_dump(mode="json")}, ensure_ascii=False))
         return {"id": cursor.lastrowid}
 
@@ -64,7 +114,8 @@ def update_transaction(identifier: int, payload: TransactionInput):
         if not before:
             raise HTTPException(404, "تراکنش پیدا نشد.")
         validate_references(db, payload)
-        db.execute("""UPDATE transactions SET transaction_type=?, amount=?, occurred_on=?, category_id=?, account_id=?, note=?, title=?, counterparty=?, status=? WHERE id=?""", (*transaction_values(payload), identifier))
+        validate_payment_and_duplicates(db, payload, identifier)
+        db.execute("""UPDATE transactions SET transaction_type=?, amount=?, occurred_on=?, category_id=?, account_id=?, note=?, title=?, counterparty=?, status=?, payment_id=?, settled_on=?, settled_date_assumed=? WHERE id=?""", (*transaction_values(payload), identifier))
         write_audit_log(db, "update", "transaction", identifier, json.dumps({"before": dict(before), "after": payload.model_dump(mode="json")}, ensure_ascii=False))
     return {"id": identifier}
 
@@ -104,4 +155,5 @@ def transactions(month: str | None = Query(default=None, pattern=r"^\d{4}-\d{2}$
     for item in result:
         item["title"] = item["title"] or item["note"] or "تراکنش"
         item["occurred_on"] = format_jalali_date(item["occurred_on"])
+        item["settled_on"] = format_jalali_date(item["settled_on"]) if item["settled_on"] else None
     return result

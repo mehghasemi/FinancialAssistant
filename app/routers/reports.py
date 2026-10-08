@@ -44,7 +44,7 @@ def financial_report(month: str | None = None, year: int | None = Query(None, ge
     start, end = period_bounds(month, year, start_date, end_date)
     with connection() as db:
         rows = [dict(row) for row in db.execute("""SELECT t.id, t.occurred_on AS date, t.transaction_type AS record_type,
-                COALESCE(NULLIF(t.title, ''), NULLIF(t.note, ''), 'تراکنش') AS title, COALESCE(c.name, '') AS category, t.amount, t.status, t.counterparty, t.note
+                COALESCE(NULLIF(t.title, ''), NULLIF(t.note, ''), 'تراکنش') AS title, COALESCE(c.name, '') AS category, t.amount, t.status, t.counterparty, t.note, t.payment_id
                 FROM transactions t LEFT JOIN categories c ON c.id=t.category_id""")]
         installments = [dict(row) for row in db.execute("""SELECT i.id, i.commitment_id, i.due_date AS date, c.title, c.kind AS category,
             i.amount, i.note, COALESCE(p.paid,0) AS paid_amount,
@@ -76,7 +76,7 @@ def financial_report(month: str | None = None, year: int | None = Query(None, ge
         group["installment_count"] += 1
     for group in groups.values():
         group["status"] = "paid" if not group["remaining_amount"] else "partial" if group["paid_amount"] else "overdue" if group["date"] < today else "unpaid"
-    active = [item for item in transactions if item["status"] != "cancelled"]
+    active = [item for item in transactions if item["status"] != "cancelled" and not item.get("payment_id")]
     def total(kind, paid_only=False):
         return sum(item["amount"] for item in active if item["record_type"] == kind and (not paid_only or item["status"] == "paid"))
     summary = dict(income=total("income"), expense=total("expense"), net=total("income")-total("expense"),

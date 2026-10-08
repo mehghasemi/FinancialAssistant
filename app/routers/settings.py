@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import json
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, UploadFile, File, HTTPException
+import sqlite3
+import jdatetime
 
 from ..calendar import format_jalali_datetime
 from ..config import APP_VERSION, MAX_PAGE_SIZE
@@ -11,6 +13,29 @@ from ..schemas import SettingsInput, ClearDataInput
 from ..utils import serialize
 
 router = APIRouter(prefix="/api", tags=["settings"])
+
+
+@router.get("/calendar")
+def calendar_month(year: int = Query(ge=1, le=9377), month: int = Query(ge=1, le=12)):
+    first = jdatetime.date(year, month, 1)
+    days = 31 if month <= 6 else 30 if month <= 11 or first.isleap() else 29
+    return {"year": year, "month": month, "days": days, "weekday": first.weekday()}
+
+
+@router.post("/backups/restore")
+def restore(file: UploadFile = File(...), confirm: bool = Query(False)):
+    if not confirm:
+        raise HTTPException(422, "بازیابی جایگزین اطلاعات فعلی می‌شود و نیاز به تأیید دارد.")
+    maximum = 100 * 1024 * 1024
+    content = file.file.read(maximum + 1)
+    if len(content) > maximum:
+        raise HTTPException(413, "حجم فایل پشتیبان نباید بیشتر از ۱۰۰ مگابایت باشد.")
+    try:
+        from ..services.backups import restore_uploaded_backup
+        path = restore_uploaded_backup(content)
+    except (ValueError, sqlite3.DatabaseError, RuntimeError) as error:
+        raise HTTPException(422, "فایل پشتیبان ناسالم، نامعتبر یا متعلق به نسخهٔ جدیدتری است؛ اطلاعات فعلی تغییر نکرد.") from error
+    return {"status": "restored", "backup_path": str(path)}
 
 
 @router.get("/health")
