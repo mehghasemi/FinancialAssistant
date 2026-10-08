@@ -207,8 +207,8 @@ def import_commitments(db, import_id: int, values_workbook) -> tuple[int, int, i
                 payment_key = f"payment:تعهدات مالی:{row_number}"
                 db.execute(
                     """INSERT OR IGNORE INTO payments
-                       (installment_id, amount, paid_on, note, source_key)
-                       VALUES (?, ?, ?, ?, ?)""",
+                       (installment_id, amount, paid_on, note, source_key, paid_date_assumed)
+                       VALUES (?, ?, ?, ?, ?, 1)""",
                     (
                         installment["id"],
                         amount,

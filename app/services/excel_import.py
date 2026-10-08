@@ -205,8 +205,8 @@ def _save_groups(groups) -> dict:
                 if status in PAID_STATUSES:
                     payment_key = f"payment:Sheet4:{row_number}"
                     db.execute(
-                        """INSERT OR IGNORE INTO payments(installment_id, amount, paid_on, account_id, note, source_key)
-                           VALUES (?, ?, ?, NULL, ?, ?)""",
+                        """INSERT OR IGNORE INTO payments(installment_id, amount, paid_on, account_id, note, source_key, paid_date_assumed)
+                           VALUES (?, ?, ?, NULL, ?, ?, 1)""",
                         (
                             installment_row["id"], amount, due_iso,
                             "تاریخ پرداخت در فایل موجود نبود، سررسید به‌عنوان تاریخ پرداخت ثبت شد.",

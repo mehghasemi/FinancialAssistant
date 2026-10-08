@@ -45,6 +45,9 @@ def main() -> int:
     if args.scope == "syntax":
         return 0
     if node and args.scope in ("all", "finance", "api"):
+        result = subprocess.run([node, str(ROOT / "tests/test_cash_filters.js")], cwd=ROOT)
+        if result.returncode:
+            return result.returncode
         result = subprocess.run([node, str(ROOT / "tests/test_money.js")], cwd=ROOT)
         if result.returncode:
             return result.returncode

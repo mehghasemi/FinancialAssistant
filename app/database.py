@@ -237,6 +237,15 @@ def initialize_database(*, target_path: Path | None = None) -> None:
         )
 
         db.execute("""INSERT OR IGNORE INTO release_history(version, released_at, title, description, affected_areas)
+                   VALUES ('0.28.0', '2026-10-08T18:26:26+03:30', 'انتخاب دوره و یکپارچه‌سازی منوها',
+                   'پنجرهٔ سال و ماه؛ نمودارهای جداشده و چهار مورد نیازمند اقدام؛ منوهای گروهی و تنظیمات با کارت‌های میان‌بر.', 'رابط کاربری، داشبورد')""")
+        db.execute("""INSERT OR IGNORE INTO release_history(version, released_at, title, description, affected_areas)
+                   VALUES ('0.27.0', '2026-10-08T11:19:38+03:30', 'گردش پرداخت‌ها و داشبورد فشرده',
+                   'فیلتر گردش بر اساس تاریخ پرداخت؛ داشبورد فشرده؛ ماندهٔ قابل پس‌انداز پس از کسر پرداخت‌نشده‌های ماه انتخابی.', 'داشبورد، گزارش گردش')""")
+        db.execute("""INSERT OR IGNORE INTO release_history(version, released_at, title, description, affected_areas)
+                   VALUES ('0.26.0', '2026-10-08T11:13:06+03:30', 'بررسی تاریخ پرداخت‌ها',
+                   'تاریخ پرداخت کنار سررسید؛ گزارش اختلاف تاریخ و ماه و تأیید تاریخ‌های فرض‌شدهٔ وارداتی.', 'داشبورد، اقساط، پرداخت‌ها')""")
+        db.execute("""INSERT OR IGNORE INTO release_history(version, released_at, title, description, affected_areas)
                    VALUES ('0.17.0', '2026-09-30T18:00:00+03:30', 'داشبورد فشرده و جمع جدول‌ها',
                            'کاهش فاصله‌های داشبورد و نمایش جمع نتایج فیلترشده در جدول‌های مالی.', 'رابط کاربری')""")
         if PORTABLE_MODE:

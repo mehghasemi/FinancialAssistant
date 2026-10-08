@@ -5,7 +5,7 @@ import sqlite3
 import jdatetime
 from datetime import date
 
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
 
 
 def _ensure_column(db: sqlite3.Connection, table: str, definition: str) -> None:
@@ -141,7 +141,14 @@ def _bank_accounts(db):
         _ensure_column(db, "accounts", definition)
 
 
-MIGRATIONS = (_legacy_schema, _schedule_interval, _backfill_repayment, _assets_and_transactions, _payment_links_and_budgets, _cash_dates_and_opening, _bank_accounts)
+def _payment_date_provenance(db):
+    _ensure_column(db, "payments", "paid_date_assumed INTEGER NOT NULL DEFAULT 0")
+    # Imported sheets had no reliable payment date. Require explicit review,
+    # even where a previous edit may have corrected the date already.
+    db.execute("UPDATE payments SET paid_date_assumed=1 WHERE source_key LIKE 'payment:%'")
+
+
+MIGRATIONS = (_legacy_schema, _schedule_interval, _backfill_repayment, _assets_and_transactions, _payment_links_and_budgets, _cash_dates_and_opening, _bank_accounts, _payment_date_provenance)
 
 
 def run_migrations(db):

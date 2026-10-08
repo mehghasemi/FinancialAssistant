@@ -42,7 +42,7 @@ def check_executable() -> int:
                         return response.read()
 
                 assert json.loads(request("/api/health"))["application"] == "FinancialAssistant"
-                for path in ("/", "/static/app.js", "/static/money.js", "/static/table-sort.js", "/static/finance.js", "/static/jalali-picker.js", "/static/restore.js", "/static/help.js", "/static/base-data.js", "/static/dashboard-cash.js", "/static/styles.css", "/static/fonts/Vazirmatn-wght.woff2"):
+                for path in ("/", "/static/app.js", "/static/money.js", "/static/table-sort.js", "/static/finance.js", "/static/jalali-picker.js", "/static/period-picker.js", "/static/restore.js", "/static/help.js", "/static/base-data.js", "/static/dashboard-cash.js", "/static/styles.css", "/static/fonts/Vazirmatn-wght.woff2"):
                     assert request(path), f"Missing resource: {path}"
                 assert json.loads(request("/api/calendar?year=1403&month=12"))["days"] == 30
                 created = json.loads(request("/api/commitments", {

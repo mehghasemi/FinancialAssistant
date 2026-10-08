@@ -141,7 +141,7 @@ def installment_details(installment_id: int):
         if not row:
             raise HTTPException(404, "قسط پیدا نشد.")
         payments = [serialize(item) for item in db.execute(
-            "SELECT p.id, p.amount, p.paid_on, p.account_id, p.note, a.name AS account_name "
+            "SELECT p.id, p.amount, p.paid_on, p.paid_date_assumed, p.account_id, p.note, a.name AS account_name "
             "FROM payments p LEFT JOIN accounts a ON a.id = p.account_id WHERE p.installment_id = ? ORDER BY p.id", (installment_id,)
         ).fetchall()]
         logs = [serialize(item) for item in db.execute(

@@ -50,6 +50,8 @@ def installment_rows(where: str = "", params: tuple = ()) -> list[dict]:
         SELECT
             i.id, i.due_date, i.amount, i.note, c.id AS commitment_id,
             c.title, c.kind, c.total_amount,
+            GROUP_CONCAT(DISTINCT p.paid_on) AS payment_dates,
+            COALESCE(MAX(p.paid_date_assumed), 0) AS payment_date_assumed,
             COALESCE(SUM(p.amount), 0) AS paid_amount,
             i.amount - COALESCE(SUM(p.amount), 0) AS remaining_amount
         FROM installments i
@@ -72,5 +74,6 @@ def installment_rows(where: str = "", params: tuple = ()) -> list[dict]:
             item["status"] = "overdue"
         else:
             item["status"] = "unpaid"
+        item["payment_dates"] = [format_jalali_date(value) for value in sorted((item["payment_dates"] or "").split(",")) if value]
         item["due_date"] = format_jalali_date(item["due_date"])
     return result

@@ -218,3 +218,119 @@ tr:is(.payment-paid,.payment-unpaid,.payment-partial,.payment-overdue,.payment-c
 .guide-topic { margin:12px 0; line-height:2; }.guide-topic summary { color:var(--green); font-weight:bold; cursor:pointer; }
 #help .panel { line-height:2; margin-bottom:12px; }#helpSearch { margin-top:6px; }.field-hint { display:block; font-size:11px; line-height:1.8; color:var(--muted); margin-top:4px; }
 .restore-dialog { width:540px; max-width:calc(100vw - 24px); border:1px solid var(--line); border-radius:14px; padding:22px; color:var(--ink); line-height:2; }.restore-dialog::backdrop { background:#102b4755; }#restoreProgress { overflow-wrap:anywhere; }
+
+/* Compact overview: charts first, eight summary cards, then actions. */
+#dashboard .dashboard-header { align-items:center; margin-bottom:8px; }
+#dashboard .dashboard-header h1 { font-size:19px; margin-bottom:2px; }
+#dashboard .dashboard-header .eyebrow { display:none; }
+#dashboard .dashboard-tools { gap:6px; flex-wrap:wrap; }
+#dashboard .dashboard-tools button { padding:8px 10px; font-size:12px; }
+#dashboard .dashboard-charts { padding:10px 12px; margin:0 0 8px; }
+.dashboard-chart-grid { display:grid; grid-template-columns:minmax(0,1.6fr) minmax(0,1fr) minmax(0,1fr); gap:16px; margin-top:8px; }
+.dashboard-chart-grid article { min-width:0; }
+.dashboard-chart-grid h2 { font-size:12px; }
+.dashboard-chart-grid .help-text,.dashboard-chart-grid .chart-legend { font-size:10px; margin:4px 0; }
+.dashboard-chart-grid .cash-year-bars,.dashboard-chart-grid .balance-trend { height:112px; padding:4px 0; gap:3px; }
+.dashboard-chart-grid .cash-month { min-width:22px; font-size:9px; }
+.dashboard-chart-grid .bar-pair { height:82px; margin-bottom:4px; }
+.dashboard-chart-grid .balance-trend>div { min-width:18px; font-size:9px; }
+.dashboard-chart-grid .trend-track { height:82px; }
+.dashboard-chart-grid .composition-row { padding:8px 0; gap:4px; font-size:11px; }
+.dashboard-chart-grid .help { margin:4px 0; font-size:10px; }
+#dashboard .dashboard-period { margin:6px 0; font-size:11px; }
+#dashboard .dashboard-stats { grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; }
+#dashboard .dashboard-stats article { padding:9px 11px; border-radius:10px; min-width:0; }
+#dashboard .dashboard-stats small { font-size:11px; }
+#dashboard .dashboard-stats strong { font-size:clamp(16px,1.6vw,23px); margin-top:4px; }
+#dashboard .dashboard-stats p { font-size:10px; margin:4px 0 0; }
+#dashboard .stat-symbol { display:none; }
+#dashboard .dashboard-grid { margin-top:8px; gap:8px; }
+#dashboard .dashboard-grid .panel { padding:10px 12px; }
+#dashboard .progress-percent { font-size:24px; margin:4px 0; }
+#dashboard .dashboard-help { margin-top:5px; }
+#dashboardActionList { max-height:145px; }
+.cash-ledger-filters { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin-bottom:12px; }
+.cash-ledger-filters label { display:grid; gap:4px; font-size:12px; min-width:0; }
+.cash-filter-note { grid-column:1/-1; color:var(--muted); }
+@media(max-width:1100px) {
+  .dashboard-chart-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .dashboard-chart-grid article:first-child { grid-column:1/-1; }
+  .cash-ledger-filters { grid-template-columns:repeat(3,minmax(0,1fr)); }
+}
+@media(max-width:700px) {
+  #dashboard .dashboard-stats,.cash-ledger-filters { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .dashboard-chart-grid { grid-template-columns:1fr; }
+  #dashboard .dashboard-header { flex-wrap:wrap; }
+}
+
+@media(min-width:1101px) {
+  #dashboard .dashboard-stats article p { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
+  #dashboard .dashboard-stats article { padding:8px 10px; }
+  #dashboard .dashboard-stats strong { line-height:1.4; }
+  .dashboard-chart-grid article:first-child > .help-text { display:none; }
+  .dashboard-chart-grid .cash-year-bars,.dashboard-chart-grid .balance-trend { height:100px; }
+  .dashboard-chart-grid .bar-pair,.dashboard-chart-grid .trend-track { height:72px; }
+  #dashboard .progress-panel { display:grid; grid-template-columns:1fr auto; gap:4px 10px; }
+  #dashboard .progress-panel .panel-title { margin:0; grid-column:1; }
+  #dashboard #commitmentSummary { margin:0; grid-column:1; font-size:11px; }
+  #dashboard #commitmentPercent { grid-column:2; grid-row:1/3; align-self:center; }
+  #dashboard #commitmentProgressLabel { display:none; }
+  #dashboard .progress-panel .progress,#dashboard .progress-totals,#dashboardMonthDetails,#dashboard .dashboard-help { grid-column:1/-1; }
+  #dashboard .progress-totals { margin:5px 0; }
+  #dashboard .progress-totals b { display:inline; margin-inline-start:5px; }
+  #dashboard .progress-panel > .quiet { padding:5px; }
+  #dashboard .dashboard-grid .panel-caption { font-size:11px; }
+  #dashboardActionList { max-height:110px; }
+  #dashboard .dashboard-action-row { padding:6px 0; }
+  .shell:has(#dashboard.active) aside { padding-block:16px; gap:14px; }
+  .shell:has(#dashboard.active) .nav-link { padding-block:9px; }
+}
+
+@media(min-width:1101px) {
+  main:has(#dashboard.active) { padding-block:6px; }
+  #dashboard .dashboard-header > div:first-child > p { display:none; }
+  #dashboard .section-guide { margin-bottom:5px; }
+  .dashboard-chart-grid article:last-child > .help-text,.dashboard-chart-grid #cashBalanceTrend > .help-text { display:none; }
+  #dashboard .action-panel .panel-title .panel-caption { display:none; }
+  #dashboard .action-tabs button { padding:5px 8px; font-size:11px; }
+  #dashboardActionList { max-height:92px; }
+}
+
+@media(min-width:1101px) {
+  .dashboard-chart-grid .cash-year-bars,.dashboard-chart-grid .balance-trend { height:82px; }
+  .dashboard-chart-grid .bar-pair,.dashboard-chart-grid .trend-track { height:55px; }
+  #dashboardActionList { max-height:70px; }
+}
+
+/* Period selection and overview refinements (0.27.1). */
+.period-dialog { width:380px; max-width:calc(100vw - 24px); border:1px solid var(--line); border-radius:12px; padding:20px; color:var(--ink); }
+.period-dialog::backdrop { background:#102b4755; }
+.period-fields { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin:18px 0; }
+.period-fields label { display:grid; gap:6px; }
+.period-actions { display:flex; flex-wrap:wrap; gap:8px; }
+.period-picker { min-height:38px; white-space:nowrap; }
+.dashboard-chart-grid > article + article { border-inline-start:1px solid var(--line); padding-inline-start:14px; }
+#dashboard .dashboard-stats strong { font-size:clamp(15px,1.25vw,18px); margin-top:2px; }
+#dashboard .dashboard-stats article { padding-block:6px; }
+#dashboardActionList { max-height:none; overflow:visible; }
+@media(max-width:1100px) {
+  .dashboard-chart-grid > article:nth-child(2) { border-inline-start:0; padding-inline-start:0; }
+}
+@media(max-width:700px) {
+  .dashboard-chart-grid > article + article { border-inline-start:0; padding-inline-start:0; border-top:1px solid var(--line); padding-top:12px; }
+}
+
+.nav-group > .nav-link { width:100%; }
+.nav-parent { display:flex; align-items:center; justify-content:space-between; gap:6px; }
+.nav-parent[aria-expanded="true"] > span { transform:rotate(180deg); }
+.settings-cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:14px; }
+.settings-card { display:grid; grid-template-columns:1fr auto; gap:8px; text-align:right; border:1px solid var(--line); border-radius:12px; background:var(--surface); padding:20px; color:var(--ink); font:inherit; cursor:pointer; }
+.settings-card strong { font-size:16px; }.settings-card span { grid-column:1; color:var(--muted); font-size:12px; line-height:1.8; }
+.settings-card i { grid-column:2; grid-row:1/3; align-self:center; color:var(--green); font-style:normal; font-size:22px; }
+.settings-card:hover { border-color:var(--green); background:#f6fbfa; }
+#backupSettings .settings-panel,#importSettings .settings-panel,#maintenanceSettings .settings-panel { margin-bottom:16px; }
+.dashboard-chart-grid .balance-trend>div { min-width:0; }
+
+/* Keep short navigation landing pages aligned with the top of the sidebar. */
+main { align-self:start; margin-block:0; }
+.nav-group .nav-submenu .nav-link { padding-block:6px; }

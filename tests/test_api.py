@@ -81,12 +81,59 @@ class ApiTests(unittest.TestCase):
             response=self.client.post("/api/transactions",json=dict(title=title,transaction_type=kind,amount=amount,occurred_on=due,settled_on=settled,status=status))
             self.assertEqual(response.status_code,201,response.text)
         cash=cash_overview("1405-07",date(2026,10,7))
-        self.assertEqual((cash["income"],cash["paid"],cash["arrears_paid"],cash["available"]),(900,300,200,1600))
+        self.assertEqual((cash["income"],cash["paid"],cash["arrears_paid"],cash["cash_balance"],cash["available"]),(900,300,200,1600,1550))
+        self.assertEqual(len(cash["all_items"]),3)
+        self.assertTrue(all("account_name" in row for row in cash["all_items"]))
         self.assertEqual(cash["components"],dict(current=100,arrears=200,advance=0))
         self.assertEqual(len(cash["annual"]),12)
         self.assertIsNone(cash["annual"][7]["income"])
         dashboard=self.client.get("/api/dashboard?month=1405-07").json()
         self.assertEqual(dashboard["monthly_balance"],750)
+
+    def test_spendable_reserves_only_selected_month_and_never_double_subtracts(self):
+        from datetime import date
+        from app.services.cashflow import cash_overview
+        self.client.put("/api/cash-opening",json=dict(amount=10000,as_of_date="1405/07/01"))
+        identifier=self.create(first_due_date="1405/06/01",installment_count=2,interval_months=1)
+        old,current=self.rows(identifier)
+        expense=None
+        for title,day,amount in [("جاری","1405/07/01",200),("قدیمی","1405/06/01",300),("آینده","1405/08/01",400)]:
+            response=self.client.post("/api/transactions",json=dict(title=title,transaction_type="expense",amount=amount,occurred_on=day,status="unpaid"))
+            self.assertEqual(response.status_code,201,response.text)
+            if title=="جاری": expense=response.json()["id"]
+        snapshot=lambda:cash_overview("1405-07",date(2026,10,7))
+        self.assertEqual((snapshot()["reserved"],snapshot()["available"]),(1200,8800))
+        self.client.post("/api/payments",json=dict(installment_id=current["id"],amount=400,paid_on="1405/07/02"))
+        self.assertEqual((snapshot()["reserved"],snapshot()["available"]),(800,8800))
+        self.client.post("/api/payments",json=dict(installment_id=old["id"],amount=500,paid_on="1405/07/03"))
+        self.assertEqual((snapshot()["reserved"],snapshot()["available"]),(800,8300))
+        response=self.client.patch(f"/api/transactions/{expense}",json=dict(title="جاری",transaction_type="expense",amount=200,occurred_on="1405/07/01",status="paid",settled_on="1405/07/04"))
+        self.assertEqual(response.status_code,200,response.text)
+        self.assertEqual((snapshot()["cash_balance"],snapshot()["reserved"],snapshot()["available"]),(8900,600,8300))
+        self.client.post("/api/payments",json=dict(installment_id=current["id"],amount=600,paid_on="1405/08/01"))
+        self.assertEqual((snapshot()["reserved"],snapshot()["available"]),(600,8300))
+
+    def test_payment_date_review_and_explicit_confirmation(self):
+        from datetime import date
+        from app.services.cashflow import cash_overview
+        from app.migrations import _payment_date_provenance
+        commitment,payment,transaction,payload=self.linked_expense()
+        with database.connection(write=True) as db:
+            db.execute("UPDATE payments SET source_key='payment:Sheet4:99' WHERE id=?", (payment,))
+            _payment_date_provenance(db)
+        review=cash_overview("1405-07",date(2026,10,7))["date_review_items"]
+        self.assertEqual(len(review),1)  # Linked transaction is never counted twice.
+        self.assertEqual(review[0]["assumed"],1)
+        self.assertTrue(self.rows(commitment)[0]["payment_date_assumed"])
+        self.assertEqual(len(self.rows(commitment)[0]["payment_dates"]),1)
+        response=self.client.patch(f"/api/payments/{payment}",json=dict(amount=500,paid_on="1405/08/01"))
+        self.assertEqual(response.status_code,200,response.text)
+        cash=cash_overview("1405-07",date(2026,10,7))
+        self.assertEqual(cash["paid"],0)  # Future payments are only visible in the review.
+        self.assertEqual(len(cash["date_review_items"]),1)
+        self.assertEqual(cash["date_review_items"][0]["assumed"],0)
+        self.assertNotEqual(cash["date_review_items"][0]["date"],cash["date_review_items"][0]["due_date"])
+        self.assertFalse(self.rows(commitment)[0]["payment_date_assumed"])
 
     def test_cash_linked_installment_counted_once_and_missing_baseline(self):
         from datetime import date

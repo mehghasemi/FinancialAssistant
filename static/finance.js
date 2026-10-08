@@ -8,6 +8,7 @@ const moneyDisplay = value => currency(value);
 const reportFields = {reportYear:"year", reportStart:"start_date", reportEnd:"end_date", reportType:"record_type", reportCategory:"category", reportStatus:"status", reportParty:"counterparty", reportSearch:"search", reportMin:"min_amount", reportMax:"max_amount"};
 
 function reportQuery() {
+  if (typeof refreshPeriodButtons === "function") refreshPeriodButtons();
   const params = new URLSearchParams();
   const month = document.getElementById("transactionMonth").value;
   if (month) {

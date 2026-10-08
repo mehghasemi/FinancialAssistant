@@ -16,9 +16,17 @@ function summaryHint(label, description, id) {
 }
 function updateNavigation(page) {
   document.querySelectorAll(".nav-link").forEach(link => link.classList.toggle("active", link.dataset.page === page));
-  const inSettings = ["settings", "auditLog", "baseData"].includes(page);
-  document.getElementById("settingsSubmenu").hidden = !inSettings;
-  document.getElementById("settingsNavigation").setAttribute("aria-expanded", String(inSettings));
+  const groups = [
+    ["settingsNavigation","settingsSubmenu",["settings","baseData","backupSettings","importSettings","maintenanceSettings","auditLog","releases"]],
+    ["financeNavigation","financeSubmenu",["financeHome","transactions","budgets"]],
+    ["commitmentsNavigation","commitmentsSubmenu",["commitmentsHome","commitmentManagement","installmentManagement"]]
+  ];
+  for(const [buttonId,menuId,pages] of groups) {
+    const active=pages.includes(page), button=document.getElementById(buttonId);
+    document.getElementById(menuId).hidden=!active;
+    button.setAttribute("aria-expanded",String(active));
+    button.classList.toggle("active",active);
+  }
 }
 
 const statusLabel = { paid: "پرداخت‌شده", partial: "پرداخت جزئی", overdue: "معوق", unpaid: "پرداخت‌نشده" };
@@ -70,10 +78,9 @@ function formatAmountInput(input) { Money.format(input); }
 
 function populateMonthSelectors() {
   const now = currentJalaliParts(); const current = jalaliMonthKey(now.year, now.month);
-  const options = Array.from({ length: 37 }, (_, index) => { const item = offsetJalaliMonth(now.year, now.month, index - 12); const key = jalaliMonthKey(item.year, item.month); return `<option value="${key}">${jalaliMonthLabel(key)}</option>`; }).join("");
-  document.getElementById("dashboardMonth").innerHTML = options;
+
   document.getElementById("transactionMonth").innerHTML = `<option value="">همهٔ ماه‌ها</option>${jalaliMonths.map((name,index)=>`<option value="${String(index+1).padStart(2,"0")}">${name}</option>`).join("")}`;
-  document.getElementById("installmentMonth").innerHTML = `<option value="">همهٔ ماه‌ها</option>${options}`;
+
   document.getElementById("dashboardMonth").value = current;
   document.getElementById("transactionMonth").value = String(now.month).padStart(2,"0");
   document.getElementById("reportYear").value = persianDigits(now.year);
@@ -154,18 +161,19 @@ function renderDashboardActions() {
     button.querySelector("span").textContent = persianDigits(groups[button.dataset.actionPeriod].length);
   });
   document.getElementById("dashboardActionSummary").textContent = items.length ? `${persianDigits(items.length)} قسط · جمع مانده: ${currency(items.reduce((sum, item) => sum + item.remaining_amount, 0))}` : "";
-  const visible = dashboardExpanded ? items : items.slice(0, 5);
+  const visible = dashboardExpanded ? items : items.slice(0, 4);
   document.getElementById("dashboardActionList").innerHTML = visible.length ? visible.map(item => {
     const timing = item.days_overdue > 0 ? `${persianDigits(item.days_overdue)} روز تأخیر` : item.days_overdue === 0 ? "سررسید امروز" : `${persianDigits(-item.days_overdue)} روز دیگر`;
     return `<div class="dashboard-action-row"><div class="action-description"><b>${escapeHtml(item.title)}</b><small>${persianDigits(escapeHtml(item.due_date))} <span class="due-badge ${dashboardActionPeriod}">${timing}</span></small></div><strong>${currency(item.remaining_amount)}</strong><button class="quiet dashboard-detail" data-id="${item.commitment_id}">جزئیات و پرداخت</button></div>`;
   }).join("") : `<div class="dashboard-empty"><span aria-hidden="true">✓</span><p>${emptyMessages[dashboardActionPeriod]}</p></div>`;
   const more = document.getElementById("dashboardShowAll");
-  more.hidden = items.length <= 5;
+  more.hidden = items.length <= 4;
   more.textContent = dashboardExpanded ? "نمایش کمتر" : `مشاهدهٔ همهٔ ${persianDigits(items.length)} قسط`;
   more.setAttribute("aria-expanded", String(dashboardExpanded));
 }
 
 async function loadDashboard() {
+  if (typeof refreshPeriodButtons === "function") refreshPeriodButtons();
   const data = await api(`/dashboard?month=${document.getElementById("dashboardMonth").value}`);
   if (data.month !== document.getElementById("dashboardMonth").value) return;
   dashboardData = data;
@@ -185,6 +193,7 @@ async function loadDashboard() {
 }
 async function loadTransactions() { await loadFinancialReport(); }
 function installmentQuery(includeStatus = false) {
+  if (typeof refreshPeriodButtons === "function") refreshPeriodButtons();
   const params = new URLSearchParams();
   if (selectedCommitmentId !== null) return new URLSearchParams({ commitment_id: selectedCommitmentId }).toString();
   [["month", "installmentMonth"], ["search", "installmentSearch"]].forEach(([key, id]) => { const value = document.getElementById(id).value.trim(); if (value) params.set(key, value); });
@@ -211,11 +220,11 @@ function updateStatusFilter(items) {
 function renderInstallmentRows() {
   const selectedStatus = document.getElementById("installmentStatus").value;
   currentInstallments = selectedStatus ? baseInstallments.filter(item => item.status === selectedStatus) : baseInstallments;
-  renderTotals("installmentRows", ["جمع نتایج فیلتر", "", currency(sumField(currentInstallments, "amount")), currency(sumField(currentInstallments, "paid_amount")), currency(sumField(currentInstallments, "remaining_amount")), "", ""]);
+  renderTotals("installmentRows", ["جمع نتایج فیلتر", "", "", currency(sumField(currentInstallments, "amount")), currency(sumField(currentInstallments, "paid_amount")), currency(sumField(currentInstallments, "remaining_amount")), "", ""]);
   renderRows("installmentRows", currentInstallments.map(item => {
     const paymentButton = item.remaining_amount > 0 ? `<button class="quiet pay-installment" data-id="${item.id}">پرداخت</button>` : "";
-    return `<tr class="${paymentRowClass(item.status)}"><td>${selectedCommitmentId !== null ? `قسط ${persianDigits(baseInstallments.indexOf(item) + 1)}` : escapeHtml(item.title)}</td><td>${item.due_date}</td><td>${currency(item.amount)}</td><td>${currency(item.paid_amount)}</td><td>${currency(item.remaining_amount)}</td><td><span class="badge ${item.status}">${statusLabel[item.status]}</span></td><td class="row-actions"><button class="quiet edit-commitment" data-id="${item.id}">ویرایش تعهد</button><button class="quiet edit-installment" data-id="${item.id}">ویرایش قسط</button>${paymentButton}<button class="quiet payment-details" data-id="${item.id}">ریز پرداخت‌ها</button></td></tr>`;
-  }), 7);
+    return `<tr class="${paymentRowClass(item.status)}"><td>${selectedCommitmentId !== null ? `قسط ${persianDigits(baseInstallments.indexOf(item) + 1)}` : escapeHtml(item.title)}</td><td>${item.due_date}</td><td>${item.payment_dates.map(persianDigits).join("، ") || "—"}${item.payment_date_assumed ? " (نیازمند تأیید)" : ""}</td><td>${currency(item.amount)}</td><td>${currency(item.paid_amount)}</td><td>${currency(item.remaining_amount)}</td><td><span class="badge ${item.status}">${statusLabel[item.status]}</span></td><td class="row-actions"><button class="quiet edit-commitment" data-id="${item.id}">ویرایش تعهد</button><button class="quiet edit-installment" data-id="${item.id}">ویرایش قسط</button>${paymentButton}<button class="quiet payment-details" data-id="${item.id}">ریز پرداخت‌ها</button></td></tr>`;
+  }), 8);
 }
 async function openCommitmentDetails(id) {
   selectedCommitmentId = id;
@@ -247,15 +256,15 @@ function openInlinePayment(installmentId) {
   const item = currentInstallments.find(row => row.id === installmentId); if (!item) return;
   document.querySelectorAll(".inline-payment-row").forEach(row => row.remove());
   const target = document.querySelector(`.pay-installment[data-id="${installmentId}"]`)?.closest("tr"); if (!target) return;
-  target.insertAdjacentHTML("afterend", `<tr class="inline-payment-row"><td colspan="7"><form class="inline-payment-form" data-id="${item.id}"><b>ثبت پرداخت: ${escapeHtml(item.title)} — ${item.due_date}</b><div class="inline-payment-fields"><div class="field"><label>مبلغ پرداخت</label><input name="amount" data-amount inputmode="numeric" value="${item.remaining_amount.toLocaleString("fa-IR")}" required /></div><div class="field"><label>تاریخ پرداخت شمسی</label><input data-jalali="day" name="paid_on" inputmode="numeric" value="${todayJalali()}" required /></div><div class="field"><label>حساب</label><select name="account_id">${accountOptions()}</select></div><div class="field"><label>یادداشت</label><input name="note" maxlength="300" placeholder="اختیاری" /></div><button class="primary" type="submit">ثبت پرداخت</button><button class="quiet cancel-inline-payment" type="button">انصراف</button></div><p class="form-message" role="status"></p></form></td></tr>`);
+  target.insertAdjacentHTML("afterend", `<tr class="inline-payment-row"><td colspan="8"><form class="inline-payment-form" data-id="${item.id}"><b>ثبت پرداخت: ${escapeHtml(item.title)} — ${item.due_date}</b><div class="inline-payment-fields"><div class="field"><label>مبلغ پرداخت</label><input name="amount" data-amount inputmode="numeric" value="${item.remaining_amount.toLocaleString("fa-IR")}" required /></div><div class="field"><label>تاریخ پرداخت شمسی</label><input data-jalali="day" name="paid_on" inputmode="numeric" value="${todayJalali()}" required /></div><div class="field"><label>حساب</label><select name="account_id">${accountOptions()}</select></div><div class="field"><label>یادداشت</label><input name="note" maxlength="300" placeholder="اختیاری" /></div><button class="primary" type="submit">ثبت پرداخت</button><button class="quiet cancel-inline-payment" type="button">انصراف</button></div><p class="form-message" role="status"></p></form></td></tr>`);
 }
 async function openPaymentDetails(installmentId, trigger) {
   document.querySelectorAll(".payment-details-row").forEach(row => row.remove());
   const row = trigger.closest("tr");
   const details = await api(`/installments/${installmentId}/details`);
-  const payments = details.payments.map(payment => `<form class="payment-edit-form inline-edit-fields" data-id="${payment.id}"><span>پرداخت #${persianDigits(payment.id)}</span><input name="amount" aria-label="مبلغ پرداخت" data-amount inputmode="numeric" value="${Number(payment.amount).toLocaleString("fa-IR")}" required /><input data-jalali="day" name="paid_on" aria-label="تاریخ پرداخت شمسی" value="${escapeHtml(payment.paid_on)}" required /><select name="account_id" aria-label="حساب"><option value="">بدون حساب</option>${accounts.map(account => `<option value="${account.id}" ${account.id === payment.account_id ? "selected" : ""}>${escapeHtml(account.name)}</option>`).join("")}</select><input name="note" aria-label="یادداشت" maxlength="300" value="${escapeHtml(payment.note || "")}" /><button class="quiet" type="submit">ذخیره پرداخت</button><button class="quiet delete-payment" type="button" data-id="${payment.id}">حذف پرداخت</button></form>`).join("") || "پرداختی ثبت نشده است.";
+  const payments = details.payments.map(payment => `<form class="payment-edit-form inline-edit-fields" data-id="${payment.id}"><span>پرداخت #${persianDigits(payment.id)}${payment.paid_date_assumed ? "؛ تاریخ فرض‌شده: بررسی و با ذخیره تأیید کنید" : ""}</span><input name="amount" aria-label="مبلغ پرداخت" data-amount inputmode="numeric" value="${Number(payment.amount).toLocaleString("fa-IR")}" required /><input data-jalali="day" name="paid_on" aria-label="تاریخ پرداخت شمسی" value="${escapeHtml(payment.paid_on)}" required /><select name="account_id" aria-label="حساب"><option value="">بدون حساب</option>${accounts.map(account => `<option value="${account.id}" ${account.id === payment.account_id ? "selected" : ""}>${escapeHtml(account.name)}</option>`).join("")}</select><input name="note" aria-label="یادداشت" maxlength="300" value="${escapeHtml(payment.note || "")}" /><button class="quiet" type="submit">ذخیره پرداخت</button><button class="quiet delete-payment" type="button" data-id="${payment.id}">حذف پرداخت</button></form>`).join("") || "پرداختی ثبت نشده است.";
   const history = details.history.map(log => `<li>${escapeHtml(log.created_at)} · ${escapeHtml({ restore: "بازیابی", create: "ثبت", update: "ویرایش", delete: "حذف" }[log.action] || log.action)} ${escapeHtml({ commitment: "تعهد", installment: "قسط", payment: "پرداخت", asset: "دارایی" }[log.resource_type] || log.resource_type)} · ${auditDetails(log.details)}</li>`).join("") || "<li>تغییری ثبت نشده است.</li>";
-  row.insertAdjacentHTML("afterend", `<tr class="payment-details-row"><td colspan="7"><b>ریز پرداخت‌ها</b>${payments}<details><summary>تاریخچه تغییرات</summary><ul>${history}</ul></details><p class="form-message" role="status"></p><button class="quiet close-payment-details" type="button">بستن</button></td></tr>`);
+  row.insertAdjacentHTML("afterend", `<tr class="payment-details-row"><td colspan="8"><b>ریز پرداخت‌ها</b>${payments}<details><summary>تاریخچه تغییرات</summary><ul>${history}</ul></details><p class="form-message" role="status"></p><button class="quiet close-payment-details" type="button">بستن</button></td></tr>`);
 }
 function openInlineCommitmentEdit(installmentId) {
   const installment = currentInstallments.find(row => row.id === installmentId);
@@ -267,7 +276,7 @@ function openInlineInstallmentEdit(installmentId) {
   const item = currentInstallments.find(row => row.id === installmentId); if (!item) return;
   document.querySelectorAll(".inline-edit-row").forEach(row => row.remove());
   const target = document.querySelector(`.edit-installment[data-id="${installmentId}"]`)?.closest("tr"); if (!target) return;
-  target.insertAdjacentHTML("afterend", `<tr class="inline-edit-row"><td colspan="7"><form class="inline-installment-form" data-id="${item.id}"><b>ویرایش جزئی قسط</b><p>تغییر مبلغ، بازپرداخت کل تعهد را به همان اندازه تغییر می‌دهد؛ سایر اقساط ثابت می‌مانند.</p><div class="inline-edit-fields"><div class="field"><label>سررسید شمسی</label><input data-jalali="day" name="due_date" inputmode="numeric" value="${item.due_date}" required /></div><div class="field"><label>مبلغ قسط</label><input name="amount" data-amount inputmode="numeric" value="${Number(item.amount).toLocaleString("fa-IR")}" required /></div><div class="field"><label>یادداشت</label><input name="note" maxlength="300" value="${escapeHtml(item.note || "")}" /></div><button class="primary" type="submit">ذخیرهٔ قسط</button><button class="quiet cancel-inline-edit" type="button">انصراف</button></div><p class="form-message" role="status"></p></form></td></tr>`);
+  target.insertAdjacentHTML("afterend", `<tr class="inline-edit-row"><td colspan="8"><form class="inline-installment-form" data-id="${item.id}"><b>ویرایش جزئی قسط</b><p>تغییر مبلغ، بازپرداخت کل تعهد را به همان اندازه تغییر می‌دهد؛ سایر اقساط ثابت می‌مانند.</p><div class="inline-edit-fields"><div class="field"><label>سررسید شمسی</label><input data-jalali="day" name="due_date" inputmode="numeric" value="${item.due_date}" required /></div><div class="field"><label>مبلغ قسط</label><input name="amount" data-amount inputmode="numeric" value="${Number(item.amount).toLocaleString("fa-IR")}" required /></div><div class="field"><label>یادداشت</label><input name="note" maxlength="300" value="${escapeHtml(item.note || "")}" /></div><button class="primary" type="submit">ذخیرهٔ قسط</button><button class="quiet cancel-inline-edit" type="button">انصراف</button></div><p class="form-message" role="status"></p></form></td></tr>`);
 }
 function openGridCommitmentEdit(commitmentId, trigger = null) {
   const item = commitmentList.find(row => row.id === commitmentId);
@@ -362,7 +371,7 @@ document.getElementById("clearFinancialData").addEventListener("click", async ev
   }
 });
 
-document.querySelectorAll(".nav-link,[data-page]").forEach(button => button.addEventListener("click", () => { const page = button.dataset.page; if (!page || !document.getElementById(page)?.classList.contains("page")) return; document.querySelectorAll(".page").forEach(section => section.classList.toggle("active", section.id === page)); updateNavigation(page); if (page === "commitmentManagement") loadReferenceData().catch(error => setMessage("commitmentMessage", error.message, true)); if (page === "installmentManagement") { selectedCommitmentId = null; loadInstallments().catch(error => alert(error.message)); } if (page === "baseData") loadBaseData().catch(error => setMessage("baseMessage",error.message,true)); if (page === "budgets") loadBudgets(); if (page === "assets") loadAssets(); if (page === "transactions") loadTransactions(); if (page === "settings") loadSettings(); if (page === "auditLog") loadAuditLogs(); }));
+document.querySelectorAll(".nav-link,[data-page]").forEach(button => button.addEventListener("click", () => { const page = button.dataset.page; if (!page || !document.getElementById(page)?.classList.contains("page")) return; document.querySelectorAll(".page").forEach(section => section.classList.toggle("active", section.id === page)); updateNavigation(page); if (page === "commitmentManagement") loadReferenceData().catch(error => setMessage("commitmentMessage", error.message, true)); if (page === "installmentManagement") { selectedCommitmentId = null; loadInstallments().catch(error => alert(error.message)); } if (page === "baseData") loadBaseData().catch(error => setMessage("baseMessage",error.message,true)); if (page === "budgets") loadBudgets(); if (page === "assets") loadAssets(); if (page === "transactions") loadTransactions(); if (page === "backupSettings") loadSettings(); if (page === "auditLog") loadAuditLogs(); }));
 document.getElementById("createNewCommitment").addEventListener("click", () => {
   document.getElementById("commitmentForm").reset();
   document.getElementById("previewRows").closest("table").tFoot?.remove(); document.getElementById("previewRows").innerHTML = `<tr><td colspan="3" class="empty-cell">پیش‌نمایشی ایجاد نشده است.</td></tr>`;
@@ -537,7 +546,7 @@ function openAuditSection(type, id = "") {
   document.getElementById("auditResourceId").value = id;
   loadAuditLogs();
 }
-for (const [page, type] of [["commitmentManagement","commitment"], ["installmentManagement","installment"], ["transactions","transaction"], ["settings","settings"]]) {
+for (const [page, type] of [["commitmentManagement","commitment"], ["installmentManagement","installment"], ["transactions","transaction"], ["backupSettings","settings"]]) {
   const header = document.querySelector(`#${page} header`);
   if (!header) continue;
   const button = document.createElement("button"); button.className = "quiet"; button.textContent = "رویدادهای این بخش";

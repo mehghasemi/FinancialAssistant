@@ -235,12 +235,12 @@ def update_payment(payment_id: int, payload: PaymentUpdate):
             db.execute("UPDATE transactions SET amount=?, settled_on=?, account_id=?, settled_date_assumed=0 WHERE id=?",
                        (payload.amount, payload.paid_on.isoformat(), payload.account_id, linked["id"]))
             write_audit_log(db, "update", "transaction", linked["id"], json.dumps({"before":dict(linked), "after":{"amount":payload.amount,"settled_on":payload.paid_on.isoformat(),"account_id":payload.account_id},"reason":"payment_sync"}, ensure_ascii=False))
-        db.execute("UPDATE payments SET amount = ?, paid_on = ?, account_id = ?, note = ? WHERE id = ?",
+        db.execute("UPDATE payments SET amount = ?, paid_on = ?, account_id = ?, note = ?, paid_date_assumed = 0 WHERE id = ?",
                    (payload.amount, payload.paid_on.isoformat(), payload.account_id, payload.note.strip(), payment_id))
         write_audit_log(db, "update", "payment", payment_id, json.dumps({
             "installment_id": existing["installment_id"],
-            "before": {key: existing[key] for key in ("amount", "paid_on", "account_id", "note")},
-            "after": {"amount": payload.amount, "paid_on": payload.paid_on.isoformat(), "account_id": payload.account_id, "note": payload.note.strip()}
+            "before": {key: existing[key] for key in ("amount", "paid_on", "paid_date_assumed", "account_id", "note")},
+            "after": {"amount": payload.amount, "paid_on": payload.paid_on.isoformat(), "paid_date_assumed": 0, "account_id": payload.account_id, "note": payload.note.strip()}
         }, ensure_ascii=False))
     return {"id": payment_id}
 

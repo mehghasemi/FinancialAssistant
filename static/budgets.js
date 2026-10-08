@@ -3,6 +3,7 @@ const budgetMonthValue = () => latinDigits(document.getElementById("budgetMonth"
 document.getElementById("budgetMonth").value = todayJalali().slice(0,7);
 
 async function loadBudgets() {
+  if (typeof refreshPeriodButtons === "function") refreshPeriodButtons();
   const request = ++budgetRequest;
   try {
     const month = budgetMonthValue();

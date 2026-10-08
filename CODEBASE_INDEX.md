@@ -6,7 +6,7 @@
 |---|---|---|
 | راه‌اندازی و اتصال مسیرها | `app/main.py`، `app/launcher.py`، `launcher.py`، `run.ps1`، `scripts/dev.ps1`، `scripts/build.ps1`، `app/smoke.py` | `api`؛ سپس اجرای محلی در صورت نیاز |
 | تعهد، اقساط و پرداخت | `app/services/finance.py`، `app/routers/commitments.py`، `app/schemas.py`، `app/utils.py` | `finance` و `api` |
-| تقویم شمسی | `app/calendar.py`، `app/utils.py`، `static/jalali-picker.js` و `/api/calendar` در `app/routers/settings.py` | `calendar` و برای تغییر محاسبهٔ اقساط `finance` |
+| تقویم شمسی | `app/calendar.py`، `app/utils.py`، `static/jalali-picker.js`، `static/period-picker.js` و `/api/calendar` در `app/routers/settings.py` | `calendar` و برای تغییر محاسبهٔ اقساط `finance` |
 | دیتابیس، مهاجرت و پشتیبان | `app/database.py`، `app/migrations.py`، `app/services/backups.py`، `scripts/restore_backup.py`، `static/restore.js` و `/api/backups/restore` در `app/routers/settings.py` | `all` |
 | اطلاعات پایه و موجودی حساب‌ها | `app/routers/base_data.py`، `app/services/cashflow.py`، `static/base-data.js` و `static/dashboard-cash.js` | `all` و بررسی مرورگر |
 | درآمد، هزینه و داشبورد | `app/routers/transactions.py`، `app/routers/dashboard.py` | `all`؛ پوشش مستقیم فعلی محدود است |

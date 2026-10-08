@@ -1,10 +1,11 @@
 /* Sort only data rows; inline editors travel with their parent row. */
 const TableSort = (() => {
   const columns = {
-    cashActivityRows: ["date","date","text","text","number","number"],
+    cashActivityRows: ["date","date","text","text","text","number","number"],
+    cashReserveRows: ["date","text","text","number"],
     budgetRows: ["text","number","number","number","number","number","text"],
     transactionRows: ["date","text","text","text","number","text","text","text","text"],
-    installmentRows: ["text","date","number","number","number","text"],
+    installmentRows: ["text","date","date","number","number","number","text"],
     assetRows: ["text","text","date","number","number","number","text"],
     assetHistoryRows: ["date","number","number","text"],
     previewRows: ["number","date","number"]
