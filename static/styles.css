@@ -334,3 +334,38 @@ tr:is(.payment-paid,.payment-unpaid,.payment-partial,.payment-overdue,.payment-c
 /* Keep short navigation landing pages aligned with the top of the sidebar. */
 main { align-self:start; margin-block:0; }
 .nav-group .nav-submenu .nav-link { padding-block:6px; }
+
+/* Theme palette and compact accessible grid actions. */
+:root { color-scheme:light; --control:#fff; --raised:#f8fafc; }
+:root[data-theme="dark"] { color-scheme:dark; --ink:#e4edf6; --muted:#a8b8cb; --line:#34465c; --bg:#101923; --surface:#192635; --control:#14202e; --raised:#213247; --green:#64d5c8; --green-soft:#173e40; --amber:#efc06b; --amber-soft:#45351c; --red:#ff8d9e; --red-soft:#452735; }
+.theme-toggle { border:1px solid #60758c; border-radius:8px; padding:7px 12px; color:#e4edf6; background:transparent; font:inherit; cursor:pointer; text-align:right; }
+:root[data-theme="dark"] aside { background:#0d1723; }
+:root[data-theme="dark"] :is(input,select,textarea,.facet summary,.facet-options) { background:var(--control); color:var(--ink); border-color:var(--line); }
+:root[data-theme="dark"] :is(th,tfoot,.aggregate-row,.inline-payment-row td,.inline-edit-row td,.payment-details-row td) { background:var(--raised); }
+:root[data-theme="dark"] :is(dialog,.section-guide>div,.release-item) { background:var(--surface); color:var(--ink); border-color:var(--line); }
+:root[data-theme="dark"] :is(.dashboard-grid .panel,.settings-card) { border-color:var(--line); }
+:root[data-theme="dark"] :is(.settings-card:hover,.facet-options label:hover) { background:var(--raised); }
+:root[data-theme="dark"] .primary { background:var(--green); color:#082623; }
+:root[data-theme="dark"] .jalali-days button[aria-pressed="true"] { color:#082623; }
+:root[data-theme="dark"] .sidebar-backup .primary { background:#e6b450; color:#102b47; }
+:root[data-theme="dark"] :is(.progress,.action-tabs,.action-tabs span) { background:var(--raised); }
+:root[data-theme="dark"] .action-tabs button { color:var(--muted); }
+:root[data-theme="dark"] .action-tabs button[aria-pressed="true"] { background:var(--surface); color:var(--ink); }
+:root[data-theme="dark"] :is(.due-badge,.due-badge.overdue) { background:var(--red-soft); color:var(--red); }
+:root[data-theme="dark"] .due-badge.today { background:var(--amber-soft); color:var(--amber); }
+:root[data-theme="dark"] .due-badge.week { background:var(--green-soft); color:var(--green); }
+:root[data-theme="dark"] tr.payment-paid { --payment-color:#8be2b0; }
+:root[data-theme="dark"] tr.payment-unpaid { --payment-color:#9bc8ff; }
+:root[data-theme="dark"] tr.payment-partial { --payment-color:#f3cc80; }
+:root[data-theme="dark"] tr.payment-overdue { --payment-color:#ff98a5; }
+:root[data-theme="dark"] tr.payment-cancelled { --payment-color:#d0b9e8; }
+:root[data-theme="dark"] .income-bar { background:#64d5c8; }
+:root[data-theme="dark"] .expense-bar { background:#ff8d9e; }
+:root[data-theme="dark"] .income-key { color:#64d5c8; }
+:root[data-theme="dark"] .expense-key { color:#ff8d9e; }
+:root[data-theme="dark"] .clear-data-button { color:var(--red); }
+td button.grid-icon-action { display:inline-grid; place-items:center; width:34px; height:34px; min-height:34px; padding:6px; border:1px solid var(--line); border-radius:9px; margin:2px; vertical-align:middle; background:var(--surface); }
+td button.grid-icon-action:hover { background:var(--green-soft)!important; border-color:var(--green); }
+.grid-icon-action svg { width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; pointer-events:none; }
+.grid-action-tooltip { position:fixed; z-index:10000; pointer-events:none; max-width:min(280px,calc(100vw - 16px)); padding:7px 11px; border-radius:8px; background:var(--ink); color:var(--bg); box-shadow:0 4px 16px #0004; font-size:12px; line-height:1.7; text-align:center; }
+@media(forced-colors:active) { td button.grid-icon-action { border:1px solid ButtonText; } }

@@ -4,12 +4,14 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>همراه مالی</title>
-    <link rel="stylesheet" href="/static/styles.css?v=0.28.0" />
+    <script src="/static/theme.js?v=0.29.0"></script>
+    <link rel="stylesheet" href="/static/styles.css?v=0.29.0" />
   </head>
   <body>
     <div class="shell">
       <aside>
         <div class="brand"><span>₪</span><b>همراه مالی</b></div>
+        <button id="themeToggle" type="button" class="theme-toggle" aria-pressed="false">☾ نمای تاریک</button>
         <nav aria-label="منوی اصلی">
           <button class="nav-link active" data-page="dashboard">داشبورد</button>
           <div class="nav-group"><button id="financeNavigation" class="nav-link nav-parent" data-page="financeHome" aria-expanded="false" aria-controls="financeSubmenu">عملیات مالی <span aria-hidden="true">⌄</span></button><div id="financeSubmenu" class="nav-submenu" hidden><button class="nav-link" data-page="transactions">درآمد و هزینه</button><button class="nav-link" data-page="budgets">بودجهٔ ماهانه</button></div></div>
@@ -240,16 +242,17 @@
     </div>
     <dialog id="periodDialog" class="period-dialog" aria-labelledby="periodTitle"><form id="periodForm"><h2 id="periodTitle">انتخاب سال و ماه</h2><div class="period-fields"><label>سال<select id="periodYear"></select></label><label>ماه<select id="periodMonth"></select></label></div><div class="period-actions"><button class="primary" type="submit">اعمال</button><button class="quiet" type="button" id="periodToday">ماه جاری</button><button class="quiet" type="button" id="periodAll">همهٔ دوره‌ها</button><button class="quiet" type="button" id="periodCancel">انصراف</button></div></form></dialog>
     <template id="emptyRow"><tr><td colspan="6" class="empty-cell">هنوز داده‌ای ثبت نشده است.</td></tr></template>
-    <script src="/static/money.js?v=0.28.0"></script>
-    <script src="/static/table-sort.js?v=0.28.0"></script>
-    <script src="/static/app.js?v=0.28.0"></script>
-      <script src="/static/finance.js?v=0.28.0"></script>
-      <script src="/static/budgets.js?v=0.28.0"></script>
-      <script src="/static/base-data.js?v=0.28.0"></script>
-    <script src="/static/jalali-picker.js?v=0.28.0"></script>
-    <script src="/static/help.js?v=0.28.0"></script>
-    <script src="/static/restore.js?v=0.28.0"></script>
-    <script src="/static/dashboard-cash.js?v=0.28.0"></script>
-    <script src="/static/period-picker.js?v=0.28.0"></script>
+    <script src="/static/money.js?v=0.29.0"></script>
+    <script src="/static/table-sort.js?v=0.29.0"></script>
+    <script src="/static/grid-actions.js?v=0.29.0"></script>
+    <script src="/static/app.js?v=0.29.0"></script>
+      <script src="/static/finance.js?v=0.29.0"></script>
+      <script src="/static/budgets.js?v=0.29.0"></script>
+      <script src="/static/base-data.js?v=0.29.0"></script>
+    <script src="/static/jalali-picker.js?v=0.29.0"></script>
+    <script src="/static/help.js?v=0.29.0"></script>
+    <script src="/static/restore.js?v=0.29.0"></script>
+    <script src="/static/dashboard-cash.js?v=0.29.0"></script>
+    <script src="/static/period-picker.js?v=0.29.0"></script>
   </body>
 </html>
