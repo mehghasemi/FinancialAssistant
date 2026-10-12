@@ -15,7 +15,7 @@
 | بودجه و اتصال پرداخت | `app/routers/budgets.py`، `app/routers/transactions.py`، `app/services/finance.py`، `static/budgets.js` و `static/finance.js` | `all` و بررسی مرورگر |
 | دارایی و گزارش یکپارچه | `app/routers/assets.py`، `app/routers/reports.py`، `static/finance.js`؛ نمایش زندهٔ مبالغ: `static/money.js`؛ مرتب‌سازی جدول‌ها: `static/table-sort.js` | `all` و بررسی مرورگر |
 | راهنمای کاربر | `static/help.js`؛ متن مشترک راهنمای کلی و هر بخش | `syntax` و بررسی مرورگر |
-| رابط فارسی | `static/index.html`، `static/app.js`، `static/styles.css`، `static/theme.js` و `static/grid-actions.js` | `syntax` و بررسی رفتار بخش تغییرکرده در مرورگر |
+| رابط فارسی | `static/index.html`، `static/app.js`، `static/styles.css`، `static/theme.js` ، `static/grid-actions.js` و `static/ui-preferences.js` (حریم نمایش، نام نمایشی و پنجرهٔ فرم‌ها) | `syntax` و بررسی رفتار بخش تغییرکرده در مرورگر |
 | نسخه و تنظیمات اجرا | `app/config.py`، `requirements.txt` | `syntax` و بررسی مرتبط با تغییر |
 
 - `finance`: فایل `tests/test_financial_flow.py`؛ `calendar`: فایل `tests/test_jalali_calendar.py`؛ `import`: فایل `tests/test_workbook_import.py`.

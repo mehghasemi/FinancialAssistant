@@ -19,6 +19,18 @@ logging.getLogger("httpx2").setLevel(logging.WARNING)
 
 
 class ApiTests(unittest.TestCase):
+    def test_display_name_persists_without_changing_backup_settings(self):
+        before = self.client.get("/api/settings").json()
+        response = self.client.put("/api/settings/profile", json={"display_name": "  کاربر آزمایشی  "})
+        self.assertEqual(response.status_code, 200)
+        settings = self.client.get("/api/settings").json()
+        self.assertEqual(settings["display_name"], "کاربر آزمایشی")
+        self.assertEqual(settings["backup_directory"], before["backup_directory"])
+        self.assertEqual(settings["backup_enabled"], before["backup_enabled"])
+        self.assertEqual(self.client.put("/api/settings/profile", json={"display_name": "x" * 81}).status_code, 422)
+        self.client.put("/api/settings", json={"backup_enabled": True, "backup_directory": before["backup_directory"]})
+        self.assertEqual(self.client.get("/api/settings").json()["display_name"], "کاربر آزمایشی")
+
     def setUp(self):
         temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)

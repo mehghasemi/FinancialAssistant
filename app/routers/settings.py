@@ -9,7 +9,7 @@ import jdatetime
 from ..calendar import format_jalali_datetime
 from ..config import APP_VERSION, MAX_PAGE_SIZE
 from ..database import connection, create_database_backup, get_setting, set_setting, clear_financial_data, write_audit_log
-from ..schemas import SettingsInput, ClearDataInput
+from ..schemas import SettingsInput, ClearDataInput, ProfileInput
 from ..utils import serialize
 
 router = APIRouter(prefix="/api", tags=["settings"])
@@ -56,7 +56,17 @@ def settings():
     return {
         "backup_enabled": get_setting("backup_enabled", "true") == "true",
         "backup_directory": get_setting("backup_directory", ""),
+        "display_name": get_setting("display_name", ""),
     }
+
+
+@router.put("/settings/profile")
+def update_profile(payload: ProfileInput):
+    with connection(write=True) as db:
+        previous = db.execute("SELECT setting_value FROM app_settings WHERE setting_key='display_name'").fetchone()
+        db.execute("INSERT INTO app_settings(setting_key, setting_value) VALUES ('display_name', ?) ON CONFLICT(setting_key) DO UPDATE SET setting_value=excluded.setting_value, updated_at=CURRENT_TIMESTAMP", (payload.display_name,))
+        write_audit_log(db, "update", "settings", 0, json.dumps({"before": {"display_name": previous[0] if previous else ""}, "after": payload.model_dump()}, ensure_ascii=False))
+    return {"display_name": payload.display_name}
 
 
 @router.put("/settings")

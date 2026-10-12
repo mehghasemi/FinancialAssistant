@@ -237,6 +237,9 @@ def initialize_database(*, target_path: Path | None = None) -> None:
         )
 
         db.execute("""INSERT OR IGNORE INTO release_history(version, released_at, title, description, affected_areas)
+                   VALUES ('0.32.0', '2026-10-12T11:52:09+03:30', 'حریم نمایش و فرم‌های پنجره‌ای',
+                   'پنهان‌سازی پیش‌فرض داشبورد، نام نمایشی، ایجاد تعهد و تراکنش در پنجره و تراز فرم‌ها.', 'رابط کاربری، تنظیمات')""")
+        db.execute("""INSERT OR IGNORE INTO release_history(version, released_at, title, description, affected_areas)
                    VALUES ('0.31.1', '2026-10-12T06:58:05+03:30', 'راهنمای فوری آیکون‌ها',
                    'حذف تأخیر سه‌ثانیه‌ای راهنمای آیکون‌های گرید.', 'رابط کاربری')""")
         db.execute("""INSERT OR IGNORE INTO release_history(version, released_at, title, description, affected_areas)

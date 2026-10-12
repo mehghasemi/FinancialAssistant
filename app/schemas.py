@@ -195,6 +195,15 @@ class InstallmentUpdate(BaseModel):
         return normalize_text(value)
 
 
+class ProfileInput(BaseModel):
+    display_name: str = Field(default="", max_length=80)
+
+    @field_validator("display_name")
+    @classmethod
+    def clean_display_name(cls, value: str) -> str:
+        return normalize_text(value)
+
+
 class SettingsInput(BaseModel):
     backup_enabled: bool = True
     backup_directory: str = Field(min_length=1, max_length=500)

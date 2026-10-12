@@ -52,18 +52,18 @@ async function loadFinancialReport() {
   }
 }
 function setTransactionFormOpen(open) {
-  document.getElementById("transactionEntry").hidden = !open;
+  if (open) openEntryDialog("transactionEntry"); else closeEntryDialog("transactionEntry", true);
   if (open) loadPaymentOptions().catch(error=>setMessage("transactionMessage",error.message,true));
   const toggle = document.getElementById("toggleTransactionEntry");
   toggle.setAttribute("aria-expanded", String(open));
-  toggle.textContent = open ? "بستن فرم" : "＋ ثبت درآمد / هزینه";
+  toggle.textContent = "＋ ثبت درآمد / هزینه";
 }
 document.getElementById("toggleTransactionEntry").addEventListener("click", () => {
-  const open = document.getElementById("transactionEntry").hidden;
+  const open = !document.getElementById("transactionEntry").open;
   setTransactionFormOpen(open);
   if (open) document.getElementById("transactionTitle").focus();
 });
-document.querySelectorAll('.primary[data-page="transactions"]').forEach(button=>button.addEventListener("click",()=>setTransactionFormOpen(true)));
+document.querySelectorAll('#dashboard [data-page="transactions"]').forEach(button=>button.addEventListener("click",()=>setTransactionFormOpen(true)));
 function resetTransaction() {
   transactionEditId = null;
   document.getElementById("transactionForm").reset();
@@ -74,7 +74,8 @@ function resetTransaction() {
   document.getElementById("cancelTransactionEdit").hidden = true;
   updateCategories(); Money.scan(); setTransactionFormOpen(false);
 }
-document.getElementById("cancelTransactionEdit").addEventListener("click", resetTransaction);
+document.getElementById("cancelTransactionEdit").addEventListener("click", () => { if (closeEntryDialog("transactionEntry")) resetTransaction(); });
+document.getElementById("closeTransactionEntry").addEventListener("click", () => closeEntryDialog("transactionEntry"));
 document.getElementById("transactionForm").addEventListener("submit", async event => {
   event.preventDefault();
   const button = event.target.querySelector('[type="submit"]'); button.disabled = true;
@@ -89,7 +90,7 @@ document.getElementById("transactionForm").addEventListener("submit", async even
       if (!confirm(`${error.message}\n${candidates}\nفقط اگر مستقل است تأیید کنید؛ در غیر این صورت انصراف دهید و تراکنش قبلی را ویرایش کنید.`)) return;
       payload.confirm_duplicate = true; await save();
     }
-    resetTransaction(); setMessage("transactionMessage","تراکنش ذخیره شد."); await refreshAll();
+    resetTransaction(); await refreshAll(); setMessage("financeMessage","تراکنش ذخیره شد.");
   } catch (error) { setMessage("transactionMessage",error.message,true); }
   finally { button.disabled = false; }
 });
@@ -119,7 +120,7 @@ async function editTransactionById(identifier) {
     await loadPaymentOptions(item.payment_id);
     document.getElementById("transactionFormTitle").textContent="ویرایش تراکنش";
     document.getElementById("cancelTransactionEdit").hidden=false; Money.scan();
-    document.getElementById("transactionForm").scrollIntoView({block:"start"});
+    document.getElementById("transactionTitle").focus({preventScroll:true});
 }
 let reportTimer;
 document.getElementById("financeFilters").addEventListener("input",event=>{
