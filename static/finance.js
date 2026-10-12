@@ -52,16 +52,16 @@ async function loadFinancialReport() {
   }
 }
 function setTransactionFormOpen(open) {
-  if (open) openEntryDialog("transactionEntry"); else closeEntryDialog("transactionEntry", true);
+  if (open) openEntryPanel("transactionEntry"); else closeEntryPanel("transactionEntry", true);
   if (open) loadPaymentOptions().catch(error=>setMessage("transactionMessage",error.message,true));
   const toggle = document.getElementById("toggleTransactionEntry");
   toggle.setAttribute("aria-expanded", String(open));
   toggle.textContent = "＋ ثبت درآمد / هزینه";
 }
 document.getElementById("toggleTransactionEntry").addEventListener("click", () => {
-  const open = !document.getElementById("transactionEntry").open;
+  const open = document.getElementById("transactionEntry").hidden;
   setTransactionFormOpen(open);
-  if (open) document.getElementById("transactionTitle").focus();
+  if (open) document.getElementById("transactionTitle").focus({preventScroll:true});
 });
 document.querySelectorAll('#dashboard [data-page="transactions"]').forEach(button=>button.addEventListener("click",()=>setTransactionFormOpen(true)));
 function resetTransaction() {
@@ -71,11 +71,11 @@ function resetTransaction() {
   document.getElementById("transactionSettledDate").value = todayJalali();
   syncTransactionSettlement();
   document.getElementById("transactionFormTitle").textContent = "تراکنش جدید";
-  document.getElementById("cancelTransactionEdit").hidden = true;
+  document.getElementById("cancelTransactionEdit").hidden = false;
   updateCategories(); Money.scan(); setTransactionFormOpen(false);
 }
-document.getElementById("cancelTransactionEdit").addEventListener("click", () => { if (closeEntryDialog("transactionEntry")) resetTransaction(); });
-document.getElementById("closeTransactionEntry").addEventListener("click", () => closeEntryDialog("transactionEntry"));
+document.getElementById("cancelTransactionEdit").addEventListener("click", () => { if (closeEntryPanel("transactionEntry")) resetTransaction(); });
+document.getElementById("closeTransactionEntry").addEventListener("click", () => closeEntryPanel("transactionEntry"));
 document.getElementById("transactionForm").addEventListener("submit", async event => {
   event.preventDefault();
   const button = event.target.querySelector('[type="submit"]'); button.disabled = true;

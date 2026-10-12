@@ -4,8 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>همراه مالی</title>
-    <script src="/static/theme.js?v=0.32.0"></script>
-    <link rel="stylesheet" href="/static/styles.css?v=0.32.0" />
+    <script src="/static/theme.js?v=0.32.1"></script>
+    <link rel="stylesheet" href="/static/styles.css?v=0.32.1" />
   </head>
   <body>
     <div class="shell">
@@ -72,8 +72,8 @@
         </section>
 
         <section id="transactions" class="page">
-          <header><div><h1>مدیریت درآمدها و هزینه‌ها</h1><p>ثبت و ویرایش تراکنش‌ها و بررسی یکپارچهٔ تعهدات و اقساط.</p></div><button id="toggleTransactionEntry" class="primary" type="button" aria-expanded="false" aria-controls="transactionEntry">＋ ثبت درآمد / هزینه</button></header>
-          <dialog id="transactionEntry" class="entry-dialog" aria-labelledby="transactionFormTitle"><div class="entry-heading"><h2>ثبت درآمد / هزینه</h2><button type="button" class="quiet" id="closeTransactionEntry">بستن ×</button></div>
+          <header><div><h1>مدیریت درآمدها و هزینه‌ها</h1><p>ثبت و ویرایش تراکنش‌ها و بررسی یکپارچهٔ تعهدات و اقساط.</p></div></header>
+          <div class="entry-toolbar"><h2>ثبت و مدیریت تراکنش‌ها</h2><button id="toggleTransactionEntry" class="primary" type="button" aria-expanded="false" aria-controls="transactionEntry">＋ ثبت درآمد / هزینه</button></div><section id="transactionEntry" class="entry-panel panel" hidden aria-labelledby="transactionFormTitle"><div class="entry-heading"><h2>ثبت درآمد / هزینه</h2><button type="button" class="quiet" id="closeTransactionEntry">بستن ×</button></div>
             <form id="transactionForm" class="panel form-panel">
               <h2 id="transactionFormTitle">تراکنش جدید</h2>
               <div class="field"><label for="transactionTitle">عنوان</label><input id="transactionTitle" maxlength="120" required /></div>
@@ -88,9 +88,9 @@
               <div class="field"><label for="transactionPayment">اتصال به پرداخت ثبت‌شدهٔ قسط</label><select id="transactionPayment"><option value="">هزینهٔ مستقل / بدون اتصال</option></select><details class="field-help"><summary>راهنمای اتصال به قسط</summary><p>انتخاب پرداخت، مبلغ، سررسید، تاریخ پرداخت و حساب را از آن می‌گیرد. این هزینه در جمع سایر هزینه‌ها و بودجه دوباره حساب نمی‌شود. برای تغییر مبلغِ هزینهٔ متصل، پرداخت قسط را ویرایش کنید؛ تغییرات همگام می‌شوند. حذف پرداخت، هزینه را مستقل می‌کند.</p></details></div>
               <div class="field"><label for="transactionNote">شرح</label><input id="transactionNote" maxlength="300" placeholder="توضیحات اختیاری" /></div>
               <details class="help"><summary>؟ راهنمای ثبت تراکنش</summary><p>وضعیت انجام‌شده برای دریافت یا پرداخت واقعی و در انتظار برای موارد برنامه‌ریزی‌شده است. پرداخت قسط را دوباره به‌عنوان هزینه ثبت نکنید؛ گزارش اقساط را جدا نمایش می‌دهد. دسته باید با نوع تراکنش هم‌خوان باشد و مبلغ باید بزرگ‌تر از صفر باشد.</p></details>
-              <div class="entry-footer"><button class="primary" type="submit">ذخیرهٔ تراکنش</button><button id="cancelTransactionEdit" class="quiet" type="button" hidden>انصراف از ویرایش</button></div>
+              <div class="entry-footer"><button class="primary" type="submit">ذخیرهٔ تراکنش</button><button id="cancelTransactionEdit" class="quiet" type="button">انصراف</button></div>
             </form>
-          <p class="form-message" id="transactionMessage" role="status" aria-live="polite"></p></dialog>
+          <p class="form-message" id="transactionMessage" role="status" aria-live="polite"></p></section>
           <article class="panel finance-report">
             <div class="panel-title"><h2>گزارش مالی یکپارچه</h2></div>
             <details id="transactionDuplicateReview" class="help"><summary>بررسی تراکنش‌های احتمالاً تکراری</summary><p>این فهرست مستقل از فیلترهای گزارش است. مبلغ، تاریخ، حساب و نوع یکسان فقط نشانهٔ شباهت است؛ هیچ رکوردی خودکار حذف نمی‌شود.</p><p id="duplicateMessage" role="status"></p><div class="table-wrap"><table><thead><tr><th>عنوان</th><th>تاریخ</th><th>نوع</th><th>مبلغ</th><th>حساب</th><th>عملیات</th></tr></thead><tbody id="duplicateRows"></tbody></table></div></details>
@@ -146,18 +146,8 @@
         </section>
 
         <section id="commitmentManagement" class="page">
-          <header><div><h1>مدیریت تعهدات</h1><p>تعهدات جدید تعریف کنید یا تعهدات موجود را مدیریت کنید.</p></div><button class="primary" id="createNewCommitment" type="button">＋ ایجاد تعهد جدید</button></header>
-          <article class="panel commitment-grid-panel"><div class="panel-title"><h2>فهرست تعهدات موجود</h2><span>هر ردیف یک تعهد مستقل است؛ برای دیدن اقساط، جزئیات را باز کنید.</span></div>
-          <div class="commitment-filters" id="commitmentGridFilters">
-            <div class="field"><label for="commitmentSearch">جست‌وجوی عنوان یا کد تعهد</label><input id="commitmentSearch" type="search" /></div>
-            <div class="field"><label>نوع تعهد</label><details class="facet" data-filter="kind"><summary>همهٔ انواع</summary><div class="facet-options"></div></details></div>
-            <div class="field"><label>وضعیت تعهد</label><details class="facet" data-filter="status"><summary>همهٔ وضعیت‌ها</summary><div class="facet-options"></div></details></div>
-            <div class="field"><label>سال شروع</label><details class="facet" data-filter="start_year"><summary>همه</summary><div class="facet-options"></div></details></div>
-            <div class="field"><label>سال پایان</label><details class="facet" data-filter="end_year"><summary>همه</summary><div class="facet-options"></div></details></div>
-            <div class="field"><label>قسط معوق</label><details class="facet" data-filter="overdue"><summary>همه</summary><div class="facet-options"></div></details></div>
-            <button class="quiet" id="resetCommitmentFilters" type="button">بازنشانی فیلترها</button>
-          </div><div class="table-wrap"><table><thead><tr><th data-sort="unique_code" tabindex="0" aria-sort="none">کد یکتای تعهد</th><th data-sort="kind" tabindex="0" aria-sort="none">نوع</th><th data-sort="title" tabindex="0" aria-sort="none">عنوان</th><th data-sort="first_due_date" tabindex="0" aria-sort="none">تاریخ شروع</th><th data-sort="last_due_date" tabindex="0" aria-sort="none">تاریخ پایان</th><th data-sort="total_amount" tabindex="0" aria-sort="none">مبلغ اصل تسهیلات</th><th data-sort="installment_amount" tabindex="0" aria-sort="none">مبلغ هر قسط</th><th data-sort="installment_count" tabindex="0" aria-sort="none">تعداد اقساط</th><th data-sort="remaining_amount" tabindex="0" aria-sort="none">مبلغ باقی‌مانده</th><th data-sort="remaining_installment_count" tabindex="0" aria-sort="none">اقساط باقی‌مانده</th><th data-sort="status" tabindex="0" aria-sort="none">وضعیت</th><th data-sort="overdue_installment_count" tabindex="0" aria-sort="none">قسط معوق</th><th>عملیات</th></tr></thead><tbody id="commitmentRows"></tbody></table></div></article>
-          <dialog id="commitmentEntry" class="entry-dialog" aria-labelledby="commitmentEntryTitle"><div class="entry-heading"><h2 id="commitmentEntryTitle">ایجاد تعهد جدید</h2><button type="button" class="quiet" data-close-entry="commitmentEntry">بستن ×</button></div><div class="columns definition-columns">
+          <header><div><h1>مدیریت تعهدات</h1><p>تعهدات جدید تعریف کنید یا تعهدات موجود را مدیریت کنید.</p></div></header>
+          <div class="entry-toolbar"><h2>فهرست تعهدات</h2><button class="primary" id="createNewCommitment" type="button" aria-expanded="false" aria-controls="commitmentEntry">＋ ایجاد تعهد جدید</button></div><section id="commitmentEntry" class="entry-panel panel" hidden aria-labelledby="commitmentEntryTitle"><div class="entry-heading"><h2 id="commitmentEntryTitle">ایجاد تعهد جدید</h2><button type="button" class="quiet" data-close-entry="commitmentEntry">بستن ×</button></div><div class="columns definition-columns">
             <form id="commitmentForm" class="panel form-panel">
               <h2>اطلاعات تعهد جدید</h2>
               <div class="field"><label for="commitmentTitle">عنوان تعهد</label><input id="commitmentTitle" minlength="2" maxlength="120" placeholder="مثلاً وام بانک رسالت" required /></div>
@@ -175,8 +165,19 @@
             <article class="panel"><div class="panel-title"><h2>پیش‌نمایش اقساط</h2><span id="previewSummary">ابتدا اطلاعات را وارد کنید.</span></div><div id="previousPaymentControls" hidden><p class="help-text">اقساط قبلاً پرداخت‌شده را انتخاب کنید. تاریخ پیش‌فرض برابر سررسید و قابل اصلاح است؛ تا زمان اصلاح، در گزارش بررسی تاریخ‌ها «فرض‌شده» خواهد بود. پرداخت‌های قبل از تاریخ موجودی اولیه، دوباره از موجودی کسر نمی‌شوند.</p><div class="settings-actions"><label>تعداد اقساط اولِ پرداخت‌شده <input id="previousPaidCount" data-count inputmode="numeric" value="۰" /></label><button type="button" class="quiet" id="applyPreviousPaidCount">انتخاب اقساط اول</button></div></div><div class="table-wrap"><table><thead><tr><th>شماره</th><th>سررسید شمسی</th><th>مبلغ قسط</th><th>پرداخت قبلی</th><th>مبلغ پرداخت‌شده</th><th>تاریخ پرداخت</th><th>حساب</th></tr></thead><tbody id="previewRows"><tr><td colspan="7" class="empty-cell">پیش‌نمایشی ایجاد نشده است.</td></tr></tbody></table></div></article>
           </div>
           <div class="entry-footer"><button class="quiet" id="previewCommitment" type="button">نمایش پیش‌نمایش اقساط</button>
-              <button class="primary" id="saveCommitment" type="submit" form="commitmentForm" disabled>تأیید و ثبت تعهد</button><p class="form-message" id="commitmentMessage" role="status" aria-live="polite"></p></div>
-          </dialog><p id="commitmentNotice" class="form-message" role="status"></p>
+              <button class="primary" id="saveCommitment" type="submit" form="commitmentForm" disabled>تأیید و ثبت تعهد</button><button class="quiet" type="button" data-close-entry="commitmentEntry">انصراف</button><p class="form-message" id="commitmentMessage" role="status" aria-live="polite"></p></div>
+          </section>
+          <article class="panel commitment-grid-panel"><div class="panel-title"><h2>فهرست تعهدات موجود</h2><span>هر ردیف یک تعهد مستقل است؛ برای دیدن اقساط، جزئیات را باز کنید.</span></div>
+          <div class="commitment-filters" id="commitmentGridFilters">
+            <div class="field"><label for="commitmentSearch">جست‌وجوی عنوان یا کد تعهد</label><input id="commitmentSearch" type="search" /></div>
+            <div class="field"><label>نوع تعهد</label><details class="facet" data-filter="kind"><summary>همهٔ انواع</summary><div class="facet-options"></div></details></div>
+            <div class="field"><label>وضعیت تعهد</label><details class="facet" data-filter="status"><summary>همهٔ وضعیت‌ها</summary><div class="facet-options"></div></details></div>
+            <div class="field"><label>سال شروع</label><details class="facet" data-filter="start_year"><summary>همه</summary><div class="facet-options"></div></details></div>
+            <div class="field"><label>سال پایان</label><details class="facet" data-filter="end_year"><summary>همه</summary><div class="facet-options"></div></details></div>
+            <div class="field"><label>قسط معوق</label><details class="facet" data-filter="overdue"><summary>همه</summary><div class="facet-options"></div></details></div>
+            <button class="quiet" id="resetCommitmentFilters" type="button">بازنشانی فیلترها</button>
+          </div><div class="table-wrap"><table><thead><tr><th data-sort="unique_code" tabindex="0" aria-sort="none">کد یکتای تعهد</th><th data-sort="kind" tabindex="0" aria-sort="none">نوع</th><th data-sort="title" tabindex="0" aria-sort="none">عنوان</th><th data-sort="first_due_date" tabindex="0" aria-sort="none">تاریخ شروع</th><th data-sort="last_due_date" tabindex="0" aria-sort="none">تاریخ پایان</th><th data-sort="total_amount" tabindex="0" aria-sort="none">مبلغ اصل تسهیلات</th><th data-sort="installment_amount" tabindex="0" aria-sort="none">مبلغ هر قسط</th><th data-sort="installment_count" tabindex="0" aria-sort="none">تعداد اقساط</th><th data-sort="remaining_amount" tabindex="0" aria-sort="none">مبلغ باقی‌مانده</th><th data-sort="remaining_installment_count" tabindex="0" aria-sort="none">اقساط باقی‌مانده</th><th data-sort="status" tabindex="0" aria-sort="none">وضعیت</th><th data-sort="overdue_installment_count" tabindex="0" aria-sort="none">قسط معوق</th><th>عملیات</th></tr></thead><tbody id="commitmentRows"></tbody></table></div></article>
+          <p id="commitmentNotice" class="form-message" role="status"></p>
         </section>
 
         <section id="installmentManagement" class="page">
@@ -243,18 +244,18 @@
     </div>
     <dialog id="periodDialog" class="period-dialog" aria-labelledby="periodTitle"><form id="periodForm"><h2 id="periodTitle">انتخاب سال و ماه</h2><div class="period-fields"><label>سال<select id="periodYear"></select></label><label>ماه<select id="periodMonth"></select></label></div><div class="period-actions"><button class="primary" type="submit">اعمال</button><button class="quiet" type="button" id="periodToday">ماه جاری</button><button class="quiet" type="button" id="periodAll">همهٔ دوره‌ها</button><button class="quiet" type="button" id="periodCancel">انصراف</button></div></form></dialog>
     <template id="emptyRow"><tr><td colspan="6" class="empty-cell">هنوز داده‌ای ثبت نشده است.</td></tr></template>
-    <script src="/static/money.js?v=0.32.0"></script>
-    <script src="/static/table-sort.js?v=0.32.0"></script>
-    <script src="/static/grid-actions.js?v=0.32.0"></script>
-    <script src="/static/app.js?v=0.32.0"></script>
-      <script src="/static/ui-preferences.js?v=0.32.0"></script>
-      <script src="/static/finance.js?v=0.32.0"></script>
-      <script src="/static/budgets.js?v=0.32.0"></script>
-      <script src="/static/base-data.js?v=0.32.0"></script>
-    <script src="/static/jalali-picker.js?v=0.32.0"></script>
-    <script src="/static/help.js?v=0.32.0"></script>
-    <script src="/static/restore.js?v=0.32.0"></script>
-    <script src="/static/dashboard-cash.js?v=0.32.0"></script>
-    <script src="/static/period-picker.js?v=0.32.0"></script>
+    <script src="/static/money.js?v=0.32.1"></script>
+    <script src="/static/table-sort.js?v=0.32.1"></script>
+    <script src="/static/grid-actions.js?v=0.32.1"></script>
+    <script src="/static/app.js?v=0.32.1"></script>
+      <script src="/static/ui-preferences.js?v=0.32.1"></script>
+      <script src="/static/finance.js?v=0.32.1"></script>
+      <script src="/static/budgets.js?v=0.32.1"></script>
+      <script src="/static/base-data.js?v=0.32.1"></script>
+    <script src="/static/jalali-picker.js?v=0.32.1"></script>
+    <script src="/static/help.js?v=0.32.1"></script>
+    <script src="/static/restore.js?v=0.32.1"></script>
+    <script src="/static/dashboard-cash.js?v=0.32.1"></script>
+    <script src="/static/period-picker.js?v=0.32.1"></script>
   </body>
 </html>

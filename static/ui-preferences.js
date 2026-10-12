@@ -45,28 +45,29 @@ document.getElementById("profileForm").addEventListener("submit", async event =>
 });
 api("/settings").then(settings => renderProfile(settings.display_name || "")).catch(error => setMessage("profileMessage", error.message, true));
 
-function openEntryDialog(id) {
-  const dialog = document.getElementById(id);
-  if (!dialog.open) {
-    dialog.returnFocus = document.activeElement;
-    dialog.showModal();
-    dialog.scrollTop = 0;
-  }
+function entryTrigger(id) {
+  return document.getElementById(id === "transactionEntry" ? "toggleTransactionEntry" : "createNewCommitment");
 }
-function closeEntryDialog(id, saved = false) {
-  const dialog = document.getElementById(id);
-  if (!saved && dialog.dataset.dirty === "true" && !confirm("تغییرات هنوز ذخیره نشده‌اند. فرم بسته شود؟")) return false;
-  dialog.dataset.dirty = "false";
-  dialog.close();
-  dialog.returnFocus?.focus({preventScroll:true});
-  if (id === "transactionEntry") document.getElementById("toggleTransactionEntry").setAttribute("aria-expanded", "false");
+function openEntryPanel(id) {
+  const panel = document.getElementById(id);
+  if (panel.hidden) { panel.returnFocus = document.activeElement; panel.hidden = false; }
+  entryTrigger(id).setAttribute("aria-expanded", "true");
+  entryTrigger(id).disabled = true;
+}
+function closeEntryPanel(id, saved = false) {
+  const panel = document.getElementById(id);
+  if (!saved && panel.dataset.dirty === "true" && !confirm("تغییرات هنوز ذخیره نشده‌اند. فرم بسته شود؟")) return false;
+  panel.dataset.dirty = "false";
+  panel.hidden = true;
+  entryTrigger(id).setAttribute("aria-expanded", "false");
+  entryTrigger(id).disabled = false;
+  entryTrigger(id).focus({preventScroll:true});
   return true;
 }
-document.querySelectorAll(".entry-dialog").forEach(dialog => {
-  dialog.addEventListener("input", () => { dialog.dataset.dirty = "true"; });
-  dialog.addEventListener("change", () => { dialog.dataset.dirty = "true"; });
-  dialog.addEventListener("cancel", event => { event.preventDefault(); closeEntryDialog(dialog.id); });
+document.querySelectorAll(".entry-panel").forEach(panel => {
+  panel.addEventListener("input", () => { panel.dataset.dirty = "true"; });
+  panel.addEventListener("change", () => { panel.dataset.dirty = "true"; });
 });
-document.querySelectorAll("[data-close-entry]").forEach(button => button.addEventListener("click", () => closeEntryDialog(button.dataset.closeEntry)));
+document.querySelectorAll("[data-close-entry]").forEach(button => button.addEventListener("click", () => closeEntryPanel(button.dataset.closeEntry)));
 // Keep the create action on the installment page consistent with the main list.
 document.querySelector('#installmentManagement .primary[data-page="commitmentManagement"]')?.addEventListener("click", () => document.getElementById("createNewCommitment").click());
