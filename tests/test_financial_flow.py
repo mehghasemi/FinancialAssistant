@@ -10,6 +10,39 @@ from app.calendar import parse_jalali_date
 
 
 class FinancialFlowTests(unittest.TestCase):
+    def test_create_with_previous_payments_defaults_to_due_and_preserves_explicit_date(self):
+        created = commitments.create_commitment(schemas.CommitmentInput(
+            title="وام قبلی", kind="وام", installment_amount=1000,
+            first_due_date=date(2020, 1, 1), installment_count=3,
+            previous_payments=[
+                {"installment_number": 1, "amount": 1000},
+                {"installment_number": 2, "amount": 400, "paid_on": date(2020, 2, 5)},
+            ],
+        ))
+        rows = commitments.installments(commitment_id=created["id"])
+        self.assertEqual([row["paid_amount"] for row in rows], [1000, 400, 0])
+        with database.connection() as db:
+            payments = db.execute("SELECT paid_on, paid_date_assumed FROM payments ORDER BY id").fetchall()
+            self.assertEqual(tuple(payments[0]), ("2020-01-01", 1))
+            self.assertEqual(tuple(payments[1]), ("2020-02-05", 0))
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM audit_logs WHERE resource_type='payment'").fetchone()[0], 2)
+
+    def test_invalid_previous_payments_do_not_leave_partial_commitment(self):
+        from app.services.finance import FinanceError, create_commitment
+        for payments in [
+            [{"installment_number": 1, "amount": 1001}],
+            [{"installment_number": 3, "amount": 100}],
+            [{"installment_number": 1, "amount": 100}] * 2,
+            [{"installment_number": 1, "amount": 100, "account_id": 999999}],
+            [{"installment_number": 1, "amount": 100, "paid_on": date(2090, 1, 1)}],
+        ]:
+            with self.subTest(payments=payments), self.assertRaises(FinanceError):
+                create_commitment(schemas.CommitmentInput(title="وام قبلی", kind="وام", installment_amount=1000,
+                    first_due_date=date(2020, 1, 1), installment_count=2, previous_payments=payments))
+        with database.connection() as db:
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM commitments").fetchone()[0], 0)
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM payments").fetchone()[0], 0)
+
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
         self.old_data_dir, self.old_database_path = database.DATA_DIR, database.DATABASE_PATH

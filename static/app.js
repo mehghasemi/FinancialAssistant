@@ -330,15 +330,61 @@ function openCommitmentEditor(item, target, grid) {
   }));
 }
 function commitmentPayload() { return { title: document.getElementById("commitmentTitle").value, kind: document.getElementById("commitmentKind").value, total_amount: amountNumber(document.getElementById("commitmentTotal").value) || null, repayment_amount: amountNumber(document.getElementById("installmentAmount").value) * amountNumber(document.getElementById("installmentCount").value), installment_amount: amountNumber(document.getElementById("installmentAmount").value), installment_count: amountNumber(document.getElementById("installmentCount").value), first_due_date: document.getElementById("firstDueDate").value, interval_months: amountNumber(document.getElementById("intervalMonths").value) }; }
+function previousPaymentPayload() {
+  return [...document.querySelectorAll("#previewRows tr[data-preview-number]")]
+    .filter(row => row.querySelector(".previous-paid").checked)
+    .map(row => ({ installment_number: Number(row.dataset.previewNumber),
+      amount: amountNumber(row.querySelector(".previous-amount").value),
+      paid_on: row.querySelector(".previous-date").dataset.confirmed ? row.querySelector(".previous-date").value : null,
+      account_id: Number(row.querySelector(".previous-account").value) || null }));
+}
+function updatePreviousPaymentSummary() {
+  if (!commitmentPreview) return;
+  const paid = previousPaymentPayload().reduce((sum, item) => sum + item.amount, 0);
+  document.getElementById("previewSummary").textContent = `کل بازپرداخت: ${currency(commitmentPreview.planned_total)} · پرداخت قبلی: ${currency(paid)} · مانده: ${currency(commitmentPreview.planned_total - paid)}`;
+  renderTotals("previewRows", ["جمع", "", currency(commitmentPreview.planned_total), "", currency(paid), "", ""]);
+}
+document.getElementById("previewRows").addEventListener("change", event => {
+  const row = event.target.closest("tr[data-preview-number]");
+  if (!row) return;
+  if (event.target.matches(".previous-paid")) {
+    row.querySelectorAll(".previous-amount,.previous-date,.previous-account").forEach(input => { input.disabled = !event.target.checked; });
+  }
+  if (event.target.matches(".previous-date")) event.target.dataset.confirmed = "true";
+  updatePreviousPaymentSummary();
+});
+document.getElementById("previewRows").addEventListener("input", event => {
+  if (event.target.matches(".previous-date")) event.target.dataset.confirmed = "true";
+  updatePreviousPaymentSummary();
+});
+document.getElementById("applyPreviousPaidCount").addEventListener("click", () => {
+  if (!commitmentPreview) return;
+  const count = amountNumber(document.getElementById("previousPaidCount").value);
+  if (!Number.isInteger(count) || count < 0 || count > commitmentPreview.installments.length) {
+    setMessage("commitmentMessage", "تعداد اقساط پرداخت‌شده معتبر نیست.", true); return;
+  }
+  document.querySelectorAll("#previewRows tr[data-preview-number]").forEach(row => {
+    const checkbox = row.querySelector(".previous-paid");
+    checkbox.checked = Number(row.dataset.previewNumber) <= count;
+    checkbox.dispatchEvent(new Event("change", {bubbles:true}));
+  });
+});
 async function previewCommitment() {
   setMessage("commitmentMessage", "");
   try {
     if (!document.getElementById("commitmentForm").reportValidity()) return;
     commitmentPreview = await api("/commitments/preview", { method: "POST", body: JSON.stringify(commitmentPayload()) });
-    document.getElementById("previewSummary").textContent = `${persianDigits(commitmentPreview.installments.length)} قسط · از ${commitmentPreview.first_due_date} تا ${commitmentPreview.last_due_date} · جمع ${currency(commitmentPreview.planned_total)}`;
     document.getElementById("lastDueDate").value = commitmentPreview.last_due_date;
-    renderTotals("previewRows", ["جمع اقساط", "", currency(sumField(commitmentPreview.installments, "amount"))]);
-    renderRows("previewRows", commitmentPreview.installments.map(item => `<tr><td>${persianDigits(item.number)}</td><td>${item.due_date}</td><td>${currency(item.amount)}</td></tr>`), 3);
+    document.getElementById("previousPaymentControls").hidden = false;
+    document.getElementById("previousPaidCount").value = "۰";
+    renderRows("previewRows", commitmentPreview.installments.map(item => `<tr data-preview-number="${item.number}">
+      <td>${persianDigits(item.number)}</td><td>${persianDigits(item.due_date)}</td><td>${currency(item.amount)}</td>
+      <td><input type="checkbox" class="previous-paid" aria-label="قسط ${item.number} قبلاً پرداخت شده" /></td>
+      <td><input data-amount class="previous-amount" aria-label="مبلغ پرداخت قبلی قسط ${item.number}" value="${item.amount}" disabled /></td>
+      <td><input data-jalali="day" class="previous-date" aria-label="تاریخ پرداخت قبلی قسط ${item.number}" value="${persianDigits(item.due_date)}" disabled /></td>
+      <td><select class="previous-account" aria-label="حساب پرداخت قسط ${item.number}" disabled><option value="">بدون حساب</option>${accounts.map(account => `<option value="${account.id}">${escapeHtml(account.name)}</option>`).join("")}</select></td></tr>`), 7);
+    Money.scan(document.getElementById("previewRows"));
+    updatePreviousPaymentSummary();
     document.getElementById("saveCommitment").disabled = false;
   } catch (error) { commitmentPreview = null; document.getElementById("saveCommitment").disabled = true; setMessage("commitmentMessage", error.message, true); }
 }
@@ -374,7 +420,8 @@ document.getElementById("clearFinancialData").addEventListener("click", async ev
 document.querySelectorAll(".nav-link,[data-page]").forEach(button => button.addEventListener("click", () => { const page = button.dataset.page; if (!page || !document.getElementById(page)?.classList.contains("page")) return; document.querySelectorAll(".page").forEach(section => section.classList.toggle("active", section.id === page)); updateNavigation(page); if (page === "commitmentManagement") loadReferenceData().catch(error => setMessage("commitmentMessage", error.message, true)); if (page === "installmentManagement") { selectedCommitmentId = null; loadInstallments().catch(error => alert(error.message)); } if (page === "baseData") loadBaseData().catch(error => setMessage("baseMessage",error.message,true)); if (page === "budgets") loadBudgets(); if (page === "assets") loadAssets(); if (page === "transactions") loadTransactions(); if (page === "backupSettings") loadSettings(); if (page === "auditLog") loadAuditLogs(); }));
 document.getElementById("createNewCommitment").addEventListener("click", () => {
   document.getElementById("commitmentForm").reset();
-  document.getElementById("previewRows").closest("table").tFoot?.remove(); document.getElementById("previewRows").innerHTML = `<tr><td colspan="3" class="empty-cell">پیش‌نمایشی ایجاد نشده است.</td></tr>`;
+  document.getElementById("previousPaymentControls").hidden = true;
+  document.getElementById("previewRows").closest("table").tFoot?.remove(); document.getElementById("previewRows").innerHTML = `<tr><td colspan="7" class="empty-cell">پیش‌نمایشی ایجاد نشده است.</td></tr>`;
   document.getElementById("previewSummary").textContent = "ابتدا اطلاعات را وارد کنید.";
   document.getElementById("saveCommitment").disabled = true;
   commitmentPreview = null;
@@ -398,7 +445,7 @@ document.getElementById("previewCommitment").addEventListener("click", previewCo
 document.querySelectorAll("#commitmentForm input, #commitmentForm select").forEach(input => ["input", "change"].forEach(eventName => input.addEventListener(eventName, () => { if (input.id === "lastDueDate") return; commitmentPreview = null; document.getElementById("saveCommitment").disabled = true; document.getElementById("lastDueDate").value = ""; })));
 
 
-document.getElementById("commitmentForm").addEventListener("submit", async event => { event.preventDefault(); if (!commitmentPreview) return previewCommitment(); setMessage("commitmentMessage", ""); try { await api("/commitments", { method: "POST", body: JSON.stringify(commitmentPayload()) }); event.target.reset(); setJalaliDateDefaults(); document.getElementById("installmentCount").value = 12; document.getElementById("intervalMonths").value = 1; commitmentPreview = null; document.getElementById("saveCommitment").disabled = true; document.getElementById("previewRows").closest("table").tFoot?.remove(); document.getElementById("previewRows").innerHTML = `<tr><td colspan="3" class="empty-cell">پیش‌نمایشی ایجاد نشده است.</td></tr>`; document.getElementById("previewSummary").textContent = "تعهد ثبت شد."; setMessage("commitmentMessage", "تعهد و همهٔ اقساط آن ثبت شد."); await loadReferenceData(); await refreshAll(); } catch (error) { setMessage("commitmentMessage", error.message, true); } });
+document.getElementById("commitmentForm").addEventListener("submit", async event => { event.preventDefault(); if (!commitmentPreview) return previewCommitment(); setMessage("commitmentMessage", ""); try { await api("/commitments", { method: "POST", body: JSON.stringify({ ...commitmentPayload(), previous_payments: previousPaymentPayload() }) }); event.target.reset(); document.getElementById("previousPaymentControls").hidden = true; setJalaliDateDefaults(); document.getElementById("installmentCount").value = 12; document.getElementById("intervalMonths").value = 1; commitmentPreview = null; document.getElementById("saveCommitment").disabled = true; document.getElementById("previewRows").closest("table").tFoot?.remove(); document.getElementById("previewRows").innerHTML = `<tr><td colspan="7" class="empty-cell">پیش‌نمایشی ایجاد نشده است.</td></tr>`; document.getElementById("previewSummary").textContent = "تعهد ثبت شد."; setMessage("commitmentMessage", "تعهد و همهٔ اقساط آن ثبت شد."); await loadReferenceData(); await refreshAll(); } catch (error) { setMessage("commitmentMessage", error.message, true); } });
 document.getElementById("installmentRows").addEventListener("click", async event => { const payment = event.target.closest(".pay-installment"), commitment = event.target.closest(".edit-commitment"), installment = event.target.closest(".edit-installment"), details = event.target.closest(".payment-details"), deletion = event.target.closest(".delete-payment"); if (payment) openInlinePayment(Number(payment.dataset.id)); if (commitment) openInlineCommitmentEdit(Number(commitment.dataset.id)); if (installment) openInlineInstallmentEdit(Number(installment.dataset.id)); if (details) { try { await openPaymentDetails(Number(details.dataset.id), details); } catch (error) { alert(error.message); } } if (deletion && confirm("این پرداخت حذف شود؟ اگر هزینه‌ای به آن متصل باشد، اتصال حذف می‌شود و هزینه در سایر هزینه‌ها محاسبه خواهد شد.")) { try { await api(`/payments/${deletion.dataset.id}`, { method: "DELETE" }); await loadReferenceData(); await refreshAll(); } catch (error) { deletion.closest("tr").querySelector(".form-message").textContent = error.message; } } if (event.target.closest(".cancel-inline-payment, .cancel-inline-edit, .close-payment-details")) event.target.closest("tr").remove(); });
 document.getElementById("installmentRows").addEventListener("submit", async event => { const form = event.target.closest(".payment-edit-form"); if (!form) return; event.preventDefault(); const data = new FormData(form); try { await api(`/payments/${form.dataset.id}`, { method: "PATCH", body: JSON.stringify({ amount: amountNumber(data.get("amount")), paid_on: data.get("paid_on"), account_id: Number(data.get("account_id")) || null, note: data.get("note") }) }); await loadReferenceData(); await refreshAll(); } catch (error) { form.closest("tr").querySelector(".form-message").textContent = error.message; } });
 document.getElementById("commitmentRows").addEventListener("click", async event => {

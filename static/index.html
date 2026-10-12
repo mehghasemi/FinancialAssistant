@@ -4,8 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>همراه مالی</title>
-    <script src="/static/theme.js?v=0.29.0"></script>
-    <link rel="stylesheet" href="/static/styles.css?v=0.29.0" />
+    <script src="/static/theme.js?v=0.31.1"></script>
+    <link rel="stylesheet" href="/static/styles.css?v=0.31.1" />
   </head>
   <body>
     <div class="shell">
@@ -174,7 +174,7 @@
               <button class="quiet" id="previewCommitment" type="button">نمایش پیش‌نمایش اقساط</button>
               <button class="primary" id="saveCommitment" type="submit" disabled>تأیید و ثبت تعهد</button><p class="form-message" id="commitmentMessage" role="status" aria-live="polite"></p>
             </form>
-            <article class="panel"><div class="panel-title"><h2>پیش‌نمایش اقساط</h2><span id="previewSummary">ابتدا اطلاعات را وارد کنید.</span></div><div class="table-wrap"><table><thead><tr><th>شماره</th><th>سررسید شمسی</th><th>مبلغ قسط</th></tr></thead><tbody id="previewRows"><tr><td colspan="3" class="empty-cell">پیش‌نمایشی ایجاد نشده است.</td></tr></tbody></table></div></article>
+            <article class="panel"><div class="panel-title"><h2>پیش‌نمایش اقساط</h2><span id="previewSummary">ابتدا اطلاعات را وارد کنید.</span></div><div id="previousPaymentControls" hidden><p class="help-text">اقساط قبلاً پرداخت‌شده را انتخاب کنید. تاریخ پیش‌فرض برابر سررسید و قابل اصلاح است؛ تا زمان اصلاح، در گزارش بررسی تاریخ‌ها «فرض‌شده» خواهد بود. پرداخت‌های قبل از تاریخ موجودی اولیه، دوباره از موجودی کسر نمی‌شوند.</p><div class="settings-actions"><label>تعداد اقساط اولِ پرداخت‌شده <input id="previousPaidCount" data-count inputmode="numeric" value="۰" /></label><button type="button" class="quiet" id="applyPreviousPaidCount">انتخاب اقساط اول</button></div></div><div class="table-wrap"><table><thead><tr><th>شماره</th><th>سررسید شمسی</th><th>مبلغ قسط</th><th>پرداخت قبلی</th><th>مبلغ پرداخت‌شده</th><th>تاریخ پرداخت</th><th>حساب</th></tr></thead><tbody id="previewRows"><tr><td colspan="7" class="empty-cell">پیش‌نمایشی ایجاد نشده است.</td></tr></tbody></table></div></article>
           </div>
         </section>
 
@@ -242,17 +242,17 @@
     </div>
     <dialog id="periodDialog" class="period-dialog" aria-labelledby="periodTitle"><form id="periodForm"><h2 id="periodTitle">انتخاب سال و ماه</h2><div class="period-fields"><label>سال<select id="periodYear"></select></label><label>ماه<select id="periodMonth"></select></label></div><div class="period-actions"><button class="primary" type="submit">اعمال</button><button class="quiet" type="button" id="periodToday">ماه جاری</button><button class="quiet" type="button" id="periodAll">همهٔ دوره‌ها</button><button class="quiet" type="button" id="periodCancel">انصراف</button></div></form></dialog>
     <template id="emptyRow"><tr><td colspan="6" class="empty-cell">هنوز داده‌ای ثبت نشده است.</td></tr></template>
-    <script src="/static/money.js?v=0.29.0"></script>
-    <script src="/static/table-sort.js?v=0.29.0"></script>
-    <script src="/static/grid-actions.js?v=0.29.0"></script>
-    <script src="/static/app.js?v=0.29.0"></script>
-      <script src="/static/finance.js?v=0.29.0"></script>
-      <script src="/static/budgets.js?v=0.29.0"></script>
-      <script src="/static/base-data.js?v=0.29.0"></script>
-    <script src="/static/jalali-picker.js?v=0.29.0"></script>
-    <script src="/static/help.js?v=0.29.0"></script>
-    <script src="/static/restore.js?v=0.29.0"></script>
-    <script src="/static/dashboard-cash.js?v=0.29.0"></script>
-    <script src="/static/period-picker.js?v=0.29.0"></script>
+    <script src="/static/money.js?v=0.31.1"></script>
+    <script src="/static/table-sort.js?v=0.31.1"></script>
+    <script src="/static/grid-actions.js?v=0.31.1"></script>
+    <script src="/static/app.js?v=0.31.1"></script>
+      <script src="/static/finance.js?v=0.31.1"></script>
+      <script src="/static/budgets.js?v=0.31.1"></script>
+      <script src="/static/base-data.js?v=0.31.1"></script>
+    <script src="/static/jalali-picker.js?v=0.31.1"></script>
+    <script src="/static/help.js?v=0.31.1"></script>
+    <script src="/static/restore.js?v=0.31.1"></script>
+    <script src="/static/dashboard-cash.js?v=0.31.1"></script>
+    <script src="/static/period-picker.js?v=0.31.1"></script>
   </body>
 </html>

@@ -46,7 +46,7 @@ const GridActions = (() => {
     };
     document.addEventListener("pointerover", event => {
       const button = event.target.closest(".grid-icon-action");
-      if (button && button !== active && event.pointerType !== "touch") schedule(button, 3000);
+      if (button && button !== active && event.pointerType !== "touch") schedule(button, 0);
     });
     document.addEventListener("pointerout", event => {
       if (active && event.target.closest(".grid-icon-action") === active && !active.contains(event.relatedTarget)) hide();

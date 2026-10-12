@@ -237,6 +237,15 @@ def initialize_database(*, target_path: Path | None = None) -> None:
         )
 
         db.execute("""INSERT OR IGNORE INTO release_history(version, released_at, title, description, affected_areas)
+                   VALUES ('0.31.1', '2026-10-12T06:58:05+03:30', 'راهنمای فوری آیکون‌ها',
+                   'حذف تأخیر سه‌ثانیه‌ای راهنمای آیکون‌های گرید.', 'رابط کاربری')""")
+        db.execute("""INSERT OR IGNORE INTO release_history(version, released_at, title, description, affected_areas)
+                   VALUES ('0.31.0', '2026-10-12T06:39:40+03:30', 'پرداخت‌های قبلی تعهد',
+                   'ثبت اقساط پرداخت‌شده در پیش‌نمایش با تاریخ پیش‌فرض سررسید، مبلغ قابل اصلاح و ثبت رویداد.', 'تعهدات و پرداخت‌ها')""")
+        db.execute("""INSERT OR IGNORE INTO release_history(version, released_at, title, description, affected_areas)
+                   VALUES ('0.30.0', '2026-10-12T06:31:19+03:30', 'چیدمان تطبیقی کامپیوتر',
+                   'تنظیم چیدمان فرم‌ها، کارت‌ها و نمودارها با عرض پنجره و اسکرول مستقل جدول‌ها.', 'رابط کاربری')""")
+        db.execute("""INSERT OR IGNORE INTO release_history(version, released_at, title, description, affected_areas)
                    VALUES ('0.29.0', '2026-10-10T06:50:28+03:30', 'نمای تاریک و آیکون‌های گرید',
                    'انتخاب ظاهر روشن/تاریک و عملیات آیکونی با راهنمای تأخیری و پشتیبانی کیبورد.', 'ظاهر برنامه، گریدها')""")
         db.execute("""INSERT OR IGNORE INTO release_history(version, released_at, title, description, affected_areas)

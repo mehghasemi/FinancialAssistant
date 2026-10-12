@@ -39,17 +39,40 @@ def creation_schedule(payload: CommitmentInput):
 
 def create_commitment(payload: CommitmentInput):
     due_dates, amounts, planned_total = creation_schedule(payload)
+    previous = {}
+    for payment in payload.previous_payments:
+        number = payment.installment_number
+        if number in previous or number > len(amounts):
+            raise FinanceError(422, "شمارهٔ قسط پرداخت قبلی نامعتبر یا تکراری است.")
+        if payment.amount > amounts[number - 1]:
+            raise FinanceError(422, "پرداخت قبلی نمی‌تواند بیشتر از مبلغ قسط باشد.")
+        if (payment.paid_on or due_dates[number - 1]) > date.today():
+            raise FinanceError(422, "تاریخ پرداخت قبلی نمی‌تواند در آینده باشد؛ تاریخ واقعی را وارد کنید.")
+        previous[number] = payment
     with connection(write=True) as db:
+        for payment in previous.values():
+            if payment.account_id is not None and not db.execute("SELECT 1 FROM accounts WHERE id=?", (payment.account_id,)).fetchone():
+                raise FinanceError(422, "حساب انتخاب‌شده پیدا نشد.")
         unique_code = allocate_unique_code(db)
         cursor = db.execute(
             "INSERT INTO commitments(title, kind, total_amount, repayment_amount, unique_code, interval_months) VALUES (?, ?, ?, ?, ?, ?)",
             (payload.title.strip(), payload.kind.strip(), payload.total_amount, planned_total, unique_code, payload.interval_months),
         )
         commitment_id = cursor.lastrowid
-        db.executemany(
-            "INSERT INTO installments(commitment_id, due_date, amount) VALUES (?, ?, ?)",
-            ((commitment_id, due.isoformat(), amount) for due, amount in zip(due_dates, amounts)),
-        )
+        for number, (due, amount) in enumerate(zip(due_dates, amounts), start=1):
+            installment = db.execute("INSERT INTO installments(commitment_id, due_date, amount) VALUES (?, ?, ?)",
+                                     (commitment_id, due.isoformat(), amount)).lastrowid
+            payment = previous.get(number)
+            if payment:
+                paid_on = (payment.paid_on or due).isoformat()
+                payment_id = db.execute(
+                    "INSERT INTO payments(installment_id, amount, paid_on, account_id, note, paid_date_assumed) VALUES (?, ?, ?, ?, ?, ?)",
+                    (installment, payment.amount, paid_on, payment.account_id, "پرداخت قبلی هنگام ایجاد تعهد", int(payment.paid_on is None)),
+                ).lastrowid
+                write_audit_log(db, "create", "payment", payment_id, json.dumps({
+                    "installment_id": installment, "after": {"amount": payment.amount, "paid_on": paid_on,
+                    "account_id": payment.account_id, "paid_date_assumed": payment.paid_on is None}
+                }, ensure_ascii=False))
         write_audit_log(db, "create", "commitment", commitment_id, json.dumps({"after": payload.model_dump(mode="json"), "unique_code": unique_code}, ensure_ascii=False))
     return {"id": commitment_id, "installment_count": payload.installment_count, "unique_code": unique_code}
 

@@ -369,3 +369,39 @@ td button.grid-icon-action:hover { background:var(--green-soft)!important; borde
 .grid-icon-action svg { width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; pointer-events:none; }
 .grid-action-tooltip { position:fixed; z-index:10000; pointer-events:none; max-width:min(280px,calc(100vw - 16px)); padding:7px 11px; border-radius:8px; background:var(--ink); color:var(--bg); box-shadow:0 4px 16px #0004; font-size:12px; line-height:1.7; text-align:center; }
 @media(forced-colors:active) { td button.grid-icon-action { border:1px solid ButtonText; } }
+
+/* Desktop windows: let content shrink while wide grids scroll locally. */
+@media(min-width:701px) {
+  .shell { grid-template-columns:clamp(180px,17vw,240px) minmax(0,1fr); }
+  .shell > aside { position:sticky; top:0; height:100vh; overflow-y:auto; padding:18px 12px; gap:16px; }
+  aside nav { grid-template-columns:minmax(0,1fr); }
+  aside .nav-link { text-align:right; }
+  main { max-width:none; padding:22px clamp(14px,2vw,36px); }
+  .panel,.columns > *, .field,.stats > *, .form-panel > * { min-width:0; }
+  .table-wrap { max-width:100%; overscroll-behavior-x:contain; }
+  header,.panel-title { flex-wrap:wrap; }
+  .stats strong { overflow-wrap:anywhere; }
+  .grid-filters,.payment-fields,.inline-payment-fields,.inline-edit-fields { grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); }
+  .commitment-filters { grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); }
+  .dashboard-chart-grid .cash-year-bars,.dashboard-chart-grid .balance-trend { overflow-x:auto; }
+}
+@media(min-width:701px) and (max-width:1200px) {
+  .columns,.form-columns,.definition-columns { grid-template-columns:minmax(0,1fr); }
+  #dashboard .dashboard-stats { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .dashboard-grid { grid-template-columns:minmax(0,1fr); }
+  .dashboard-chart-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .dashboard-chart-grid article:first-child { grid-column:1/-1; }
+  .dashboard-chart-grid > article:nth-child(2) { border-inline-start:0; padding-inline-start:0; }
+  .cash-ledger-filters { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
+@media(min-width:1600px) {
+  .dashboard-chart-grid .cash-year-bars,.dashboard-chart-grid .balance-trend { height:132px; }
+  .dashboard-chart-grid .bar-pair,.dashboard-chart-grid .trend-track { height:100px; }
+}
+
+/* Editable historical payments in the commitment preview. */
+#previewRows input.previous-paid { width:18px; min-height:18px; }
+#previewRows .previous-amount { min-width:150px; }
+#previewRows .date-entry { min-width:175px; }
+#previewRows .previous-account { min-width:130px; }
+#previousPaymentControls { margin-bottom:14px; }

@@ -79,6 +79,18 @@ class TransactionInput(BaseModel):
         return parse_jalali_date(value)
 
 
+class PreviousInstallmentPayment(BaseModel):
+    installment_number: int = Field(ge=1, le=600)
+    amount: int = Field(gt=0)
+    paid_on: date | None = None
+    account_id: int | None = None
+
+    @field_validator("paid_on", mode="before")
+    @classmethod
+    def parse_paid_on(cls, value):
+        return parse_jalali_date(value) if value is not None else None
+
+
 class CommitmentInput(BaseModel):
     title: str = Field(min_length=2, max_length=120)
     kind: str = Field(min_length=2, max_length=50)
@@ -88,6 +100,7 @@ class CommitmentInput(BaseModel):
     first_due_date: date
     installment_count: int = Field(ge=1, le=600)
     interval_months: int = Field(default=1, ge=1, le=12)
+    previous_payments: list[PreviousInstallmentPayment] = Field(default_factory=list, max_length=600)
 
     @field_validator("title", "kind")
     @classmethod
